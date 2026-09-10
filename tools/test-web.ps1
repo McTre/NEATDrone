@@ -109,8 +109,13 @@ try {
     Send-CDP 'Input.dispatchMouseEvent' @{type='mouseReleased';x=650;y=350;button='left';clickCount=1} | Out-Null
     Press-Key 'v' 'KeyV' 86
     Press-Key 'n' 'KeyN' 78
+    Wait-Page 10500
     Press-Key 'p' 'KeyP' 80
     Press-Key 'n' 'KeyN' 78
+    Wait-Page 5000
+    $upgradeShot = Send-CDP 'Page.captureScreenshot' @{format='png'}
+    [IO.File]::WriteAllBytes((Join-Path $buildRoot 'web-upgrade.png'), [Convert]::FromBase64String($upgradeShot.data))
+    Wait-Page 5500
     Press-Key 'n' 'KeyN' 78
     Press-Key 'e' 'KeyE' 69
     Wait-Page 1000

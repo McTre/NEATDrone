@@ -49,6 +49,23 @@ Automaattinen luotipäivitys edellyttää pelaajan näköä; P lisää tarvittae
 
 ## Oppimisen kokeileminen
 
+Näön ja luotinäön avautuessa aaltojen väliin tulee nyt noin 10 sekunnin
+**Master AI / Adaptation Protocol** -ruutu. Taistelu ja pelin ohjaus pysähtyvät.
+Pää-AI kertoo edellisen aallon tappiot, päivityksen tarkoituksen ja etenee
+vaiheiden `Uploading new schematics`, `Rewriting battle code`, `Simulating`,
+`Computing` ja `Ready` kautta seuraavaan aaltoon. Palkki näyttää päivitysjakson
+etenemisen, ei oppimisen onnistumisprosenttia.
+
+Sivussa näkyvät oikea simulaatio, simuloitu aika, valmistuneet neljän sekunnin
+koejaksot, kontaktit ja saadut osumat. Tässä käyttöliittymäkokeilussa simulaatio
+ajetaan populaation kopioilla: se **ei vielä harjoita tai evolvoi** pelin droneja.
+Laskentaa tehdään pienissä, noin 2,5 ms erissä, jotta selain pysyy sulavana.
+Valmiiksi asennettu kyky ei toista ruutua tavallisten aaltojen välissä.
+
+Nopea kokeilu taistelussa: **V, N** avaa ensimmäisen päivitysruudun.
+Sen päätyttyä **P, N** avaa toisen. Automaattiset päivitykset toimivat edelleen
+sukupolvissa 6 ja 10. Samalla kertaa pyydetyt kyvyt käyttävät yhteistä ruutua.
+
 Paina **T**. Laboratorio aloittaa **48 satunnaisella genomilla**, jotta
 oppimisen etenemistä voi edelleen mitata lähtötilanteesta.
 Harjoittelutilassa jokainen genomi käy läpi neljä samaa
@@ -153,6 +170,7 @@ $godotExe = 'C:\Users\immuS\Documents\Godot\Godot_v4.7.2-stable_win64_console.ex
 & $godotExe --headless --path . --script tests/core_tests.gd
 & $godotExe --headless --path . --script tests/vision_tests.gd
 & $godotExe --headless --path . --script tests/projectile_tests.gd
+& $godotExe --headless --path . --script tests/upgrade_tests.gd
 & $godotExe --headless --path . --script tests/network_execution.gd
 & $godotExe --headless --path . --script tests/pretrained_start.gd
 & $godotExe --headless --path . --script tests/scene_smoke.gd

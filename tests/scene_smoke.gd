@@ -34,9 +34,13 @@ func run() -> void:
 	scene.vision_requested = true
 	scene.finish_wave()
 	assert(scene.evolution.vision_enabled)
+	assert(is_instance_valid(scene.upgrade_screen))
+	scene.upgrade_screen.advance(10.0)
 	assert(scene.sim.observations(scene.sim.robots[0]).size() == 13)
 	scene.projectile_requested = true
 	scene.finish_wave()
+	assert(is_instance_valid(scene.upgrade_screen))
+	scene.upgrade_screen.advance(10.0)
 	assert(scene.sim.observations(scene.sim.robots[0]).size() == 19)
 	var event = InputEventKey.new()
 	event.pressed = true
@@ -49,6 +53,7 @@ func run() -> void:
 	for i in range(4):
 		scene.finish_wave()
 	assert(scene.evolution.population.size() == 48)
+	scene.upgrade_screen.advance(10.0)
 	assert(scene.sim.firing_trial and scene.evolution.projectiles_enabled)
 	var generation: int = scene.evolution.generation
 	scene._unhandled_key_input(event)

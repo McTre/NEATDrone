@@ -3,6 +3,8 @@ extends Node2D
 const Neat = preload("res://scripts/neat.gd")
 const Sim = preload("res://scripts/simulation.gd")
 const Training = preload("res://scripts/training.gd")
+const UpgradeScreen = preload("res://scripts/upgrade_screen.gd")
+var upgrade_screen = null
 const ORIGIN = Vector2(28, 124)
 const INK = Color("d5e5ea")
 const MUTED = Color("78929e")
@@ -65,6 +67,9 @@ func _ready() -> void:
 		banner = "Click the game, then SPACE to start. WASD: move / mouse: aim / T: learning lab."
 
 func reset_population() -> void:
+	if is_instance_valid(upgrade_screen):
+		upgrade_screen.queue_free()
+	upgrade_screen = null
 	simulation_debt = 0.0
 	evolution = Neat.new(seed_value, population_size if laboratory else combat_enemies)
 	if not laboratory and pretrained_movement:
@@ -121,6 +126,8 @@ func begin_wave() -> void:
 			banner = "Projectile vision online: visible bullet direction, distance and velocity. No automatic dodge."
 
 func finish_wave() -> void:
+	if is_instance_valid(upgrade_screen):
+		return
 	if deployment:
 		wave += 1
 		begin_wave()
@@ -134,6 +141,7 @@ func finish_wave() -> void:
 		last_metrics[key] = last_metrics.get(key, 0.0) + metrics[key] / divisor
 	trial += 1
 	wave += 1
+	var upgraded = false
 	if trial >= divisor:
 		var evaluated_generation = evolution.generation
 		evolution.evolve(totals)
@@ -150,16 +158,33 @@ func finish_wave() -> void:
 				last_metrics.hits, last_metrics.survival_seconds, last_metrics.survival_rate])
 		if not evolution.vision_enabled and (vision_requested or (vision_generation > 0 and evolution.generation >= vision_generation)):
 			evolution.unlock_vision()
+			upgraded = true
 			vision_requested = false
 			history.clear()
 		if not evolution.projectiles_enabled and (projectile_requested or (projectile_generation > 0 and evolution.vision_enabled and evolution.generation >= projectile_generation)):
 			evolution.unlock_projectiles()
+			upgraded = true
 			projectile_requested = false
 			vision_requested = false
 			history.clear()
 		trial = 0
 		totals.fill(0.0)
 		last_metrics.clear()
+	if upgraded:
+		upgrade_screen = UpgradeScreen.new()
+		upgrade_screen.z_index = 10
+		add_child(upgrade_screen)
+		upgrade_screen.start(evolution.population, evolution.projectiles_enabled, sim.kills)
+		upgrade_screen.completed.connect(finish_upgrade)
+		simulation_debt = 0.0
+	else:
+		begin_wave()
+
+func finish_upgrade() -> void:
+	upgrade_screen.queue_free()
+	upgrade_screen = null
+	simulation_debt = 0.0
+	next_text_update = 0
 	begin_wave()
 
 func stage_name() -> String:
@@ -171,6 +196,9 @@ func _process(delta: float) -> void:
 	frame_clock = now
 	frame_ms = lerpf(frame_ms, real_delta * 1000.0, 0.1)
 	measured_time += real_delta
+	if is_instance_valid(upgrade_screen):
+		upgrade_screen.advance(minf(real_delta, 0.1))
+		return
 	if not paused and (laboratory or sim.player_health > 0):
 		# Fixed simulation ticks, but a bounded amount of work per rendered frame.
 		# Never multiply accelerated training by Godot's physics catch-up loop.
@@ -188,6 +216,8 @@ func _process(delta: float) -> void:
 				break
 			if sim.elapsed >= Sim.EPISODE_SECONDS or sim.alive_count() == 0:
 				finish_wave()
+				if is_instance_valid(upgrade_screen):
+					break
 			if Time.get_ticks_usec() - now >= FRAME_SIMULATION_BUDGET_US:
 				break
 	else:
@@ -199,6 +229,8 @@ func _process(delta: float) -> void:
 	queue_redraw()
 
 func _unhandled_key_input(event: InputEvent) -> void:
+	if is_instance_valid(upgrade_screen):
+		return
 	if not event is InputEventKey or not event.pressed or event.echo:
 		return
 	match event.physical_keycode:
