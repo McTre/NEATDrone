@@ -65,9 +65,11 @@ func _initialize() -> void:
 	sim.hurt_robot(robot, 1)
 	check(robot.parts.injury == -12 and sim.kills == 0, "Nonfatal hit penalizes fitness immediately")
 	sim.hurt_robot(robot, 1)
-	check(robot.parts.injury + robot.parts.death == -59 and sim.kills == 1, "Lethal damage outweighs maximum navigation rewards")
+	check(robot.health == 1 and sim.kills == 0, "Two shots must leave one health point")
 	sim.hurt_robot(robot, 1)
-	check(robot.parts.injury == -24 and sim.kills == 1, "Death is scored only once")
+	check(robot.parts.injury + robot.parts.death == -71 and sim.kills == 1, "Third shot kills and outweighs maximum navigation rewards")
+	sim.hurt_robot(robot, 1)
+	check(robot.parts.injury == -36 and sim.kills == 1, "Death is scored only once")
 	var still = neat.population[0].copy()
 	for gene in still.genes:
 		gene.weight = 0.0
@@ -77,7 +79,7 @@ func _initialize() -> void:
 	sim.firing_trial = true
 	for tick in range(45):
 		sim.step(Sim.STEP)
-	check(sim.kills == 2 and sim.robots[0].hits == 2 and sim.robots[1].hits == 2, "Overlapping lab robots each receive independent gunfire")
+	check(sim.kills == 2 and sim.robots[0].hits == 3 and sim.robots[1].hits == 3, "Overlapping lab robots each receive independent gunfire")
 	check(sim.metrics().survival_rate == 0 and sim.metrics().survival_seconds > 0, "Combat metrics measure actual survival")
 	print("PROJECTILE TESTS: %d checks, %d failures" % [checks, failures])
 	quit(1 if failures else 0)

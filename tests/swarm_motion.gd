@@ -34,7 +34,7 @@ func _initialize() -> void:
 	for tick in range(60):
 		sim.step(Sim.STEP)
 	assert(sim.robots[0].parts.wall == 0 and sim.robots[1].parts.wall == 0, "Another drone is not a wall fitness penalty")
-	sim.hurt_robot(sim.robots[1], 2)
+	sim.hurt_robot(sim.robots[1], Sim.ROBOT_HEALTH)
 	assert(sim.robot_space_free(Vector2(122, 60), sim.robots[0]), "Dead drones must not block the swarm")
 	sim.setup([policies[0], policies[1]], Vector2(150, 60), Vector2(100, 60), true)
 	assert(sim.robots[0].position == sim.robots[1].position, "Independent lab trials may share coordinates")

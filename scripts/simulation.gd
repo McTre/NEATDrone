@@ -4,6 +4,7 @@ extends RefCounted
 
 const SIZE = Vector2(900, 580)
 const ROBOT_RADIUS = 11.0
+const ROBOT_HEALTH = 3.0
 const PLAYER_RADIUS = 12.0
 const ROBOT_SPEED = 115.0
 const ROBOT_TURN_SPEED = TAU * 1.5 # 540 degrees/second; half-turn takes 1/3 s.
@@ -16,6 +17,7 @@ const EPISODE_SECONDS = 16.0
 const VISION_RANGE = 300.0
 const PROJECTILE_RANGE = 300.0
 const BULLET_SPEED = 700.0
+const BULLET_RANGE = 250.0
 const DEATH_PENALTY = -35.0
 const HIT_PENALTY = -12.0
 const NAVIGATION_WEIGHT = 0.08
@@ -91,7 +93,7 @@ func setup(genomes: Array, target: Vector2, spawn: Vector2 = Vector2(-1, -1), la
 		if not lab:
 			position = free_robot_spawn(position)
 		robots.append({"genome": genomes[i], "position": position, "velocity": Vector2.ZERO,
-			"heading": Vector2.RIGHT, "health": 2.0, "reached": false,
+			"heading": Vector2.RIGHT, "health": ROBOT_HEALTH, "reached": false,
 			"start_distance": position.distance_to(alert), "wall_time": 0.0,
 			"contact_timer": 0.0, "contacts": 0, "visible_time": 0.0,
 			"shots": [], "hits": 0, "lifetime": 0.0, "best_edge": -1.0, "search_cells": {},
@@ -357,7 +359,7 @@ func step(delta: float, movement: Vector2 = Vector2.ZERO, aim_at: Vector2 = Vect
 	if firing_trial and shoot_cooldown <= 0:
 		for robot in robots:
 			if robot.health > 0:
-				robot.shots.append({"position": player, "velocity": player.direction_to(robot.position) * BULLET_SPEED, "life": 1.8})
+				robot.shots.append({"position": player, "velocity": player.direction_to(robot.position) * BULLET_SPEED, "life": 1.8, "remaining": BULLET_RANGE})
 		shoot_cooldown = fire_interval
 	if lab and vision_enabled:
 		move_training_player(delta)
@@ -368,7 +370,7 @@ func step(delta: float, movement: Vector2 = Vector2.ZERO, aim_at: Vector2 = Vect
 		if aim_at.distance_to(player) > 1:
 			aim = player.direction_to(aim_at)
 		if shooting and shoot_cooldown <= 0:
-			bullets.append({"position": player, "velocity": aim * BULLET_SPEED, "life": 1.8})
+			bullets.append({"position": player, "velocity": aim * BULLET_SPEED, "life": 1.8, "remaining": BULLET_RANGE})
 			shoot_cooldown = 0.14
 		if melee and melee_cooldown <= 0:
 			melee_cooldown = 0.55
@@ -394,7 +396,7 @@ func step(delta: float, movement: Vector2 = Vector2.ZERO, aim_at: Vector2 = Vect
 		var wall_position = move_body(before, displacement, ROBOT_RADIUS)
 		robot.position = wall_position if lab else move_robot(robot, displacement)
 		robot.velocity = (robot.position - before) / delta
-		robot.parts.survival += delta * 0.08
+		robot.parts.survival = minf(EPISODE_SECONDS * 0.08, robot.parts.survival + delta * 0.08)
 		robot.lifetime += delta
 		if visible:
 			robot.visible_time += delta
@@ -425,7 +427,13 @@ func advance_shots(shots: Array, targets: Array, delta: float) -> void:
 	for index in range(shots.size() - 1, -1, -1):
 		var bullet = shots[index]
 		var start: Vector2 = bullet.position
-		var finish: Vector2 = start + bullet.velocity * delta
+		var remaining: float = bullet.get("remaining", BULLET_RANGE)
+		if remaining <= 0 or bullet.life <= 0:
+			shots.remove_at(index)
+			continue
+		var travel: Vector2 = bullet.velocity * minf(delta, maxf(0, bullet.life))
+		travel = travel.limit_length(maxf(0, remaining))
+		var finish: Vector2 = start + travel
 		var length = start.distance_to(finish)
 		var nearest = ray_distance(start, bullet.velocity.normalized(), length) / maxf(length, 0.000001)
 		var wall_hit = nearest < 1.0
@@ -438,9 +446,10 @@ func advance_shots(shots: Array, targets: Array, delta: float) -> void:
 				nearest = hit
 				victim = robot
 		bullet.life -= delta
+		bullet.remaining = remaining - length
 		if victim != null:
 			hurt_robot(victim, 1.0)
-		if victim != null or wall_hit or bullet.life <= 0:
+		if victim != null or wall_hit or bullet.life <= 0 or bullet.remaining <= 0.0001:
 			shots.remove_at(index)
 		else:
 			bullet.position = finish

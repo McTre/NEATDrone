@@ -15,7 +15,13 @@ PowerShell tämän projektin kansiossa:
 & 'C:\Users\immuS\Documents\Godot\Godot_v4.7.2-stable_win64.exe' --path . --editor
 ```
 
-Pelissä on kiinteä areena, pelaaja, **8 robottia** ja 16 sekunnin aallot.
+Pelissä on kiinteä areena, pelaaja ja **8 robottia**. Taisteluaalloilla ei ole
+aikarajaa: seuraava aalto alkaa automaattisesti vasta kaikkien dronejen tuhouduttua.
+N säilyy manuaalisena testaus-/jatkonäppäimenä. Laboratorion 16 sekunnin
+tehtävärajat ja päivitysruudun 15 sekunnin tauko säilyvät.
+Pelaajan luodit kulkevat enintään **250 pikseliä** laukaisupaikasta. Dronella on
+**3 HP**, joten tuhoaminen vaatii kolme luotiosumaa. Lähitaistelu tekee edelleen
+2 vahinkoa. Sama luotien kantama ja dronejen kestävyys koskevat harjoituksia.
 Taistelukenttä seuraa `Levels/Sampple.bmp`-luonnosta: neljä kulmahuonetta,
 avoin keskiristeys ja neljä sisääntuloaukkoa. Seinät piirretään pelin nykyisellä tyylillä.
 Jokaiselle aallolle arvotaan yhteinen sisääntulo koko parvelle sekä hälytysalue
@@ -216,8 +222,10 @@ liikettä tai hyökkäyssuuntaa ei määrätä erillisellä ohjauskoodilla.
 Alue-etenemisen pistekerroin on 0,08/pikseli (aiemmin 0,05), katto edelleen 30.
 Lisäksi mukana ovat pieni elossaolo-osa ja seinään juuttumisen rangaistus.
 Osuma vähentää 12 pistettä menetettyä kestävyyspistettä kohti, kuolema vielä 35.
-Kahden luodin tappo tuottaa siis yhteensä −59 pistettä. Pelaajalle tehty
+Kolmen luodin tappo tuottaa siis yhteensä −71 pistettä. Pelaajalle tehty
 kontaktivahinko palkitaan +16 pisteellä (aiemmin +8).
+Elossaolopalkkion katto on 1,28 pistettä, joten aikarajaton odottelu ei kasvata
+sitä loputtomasti.
 Seinäsensorit eivät käännä robotteja automaattisesti.
 
 Näkö lisää 0,35 pistettä/pikseli robotin omasta liikkeestä kohti sillä hetkellä
@@ -246,6 +254,7 @@ $godotExe = 'C:\Users\immuS\Documents\Godot\Godot_v4.7.2-stable_win64_console.ex
 & $godotExe --headless --path . --script tests/basic_start.gd
 & $godotExe --headless --path . --script tests/swarm_motion.gd
 & $godotExe --headless --path . --script tests/room_layout.gd
+& $godotExe --headless --path . --script tests/combat_rules.gd
 & $godotExe --headless --path . --script tests/scene_smoke.gd
 & $godotExe --headless --path . --script tests/benchmark.gd -- --generations=30 --seed=42
 & $godotExe --headless --path . --script tests/benchmark.gd -- --stage=vision --generations=20 --population=32 --seed=42 --output=res://reports/vision-benchmark.json

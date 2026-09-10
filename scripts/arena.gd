@@ -232,7 +232,7 @@ func _process(delta: float) -> void:
 			if sim.player_health <= 0 and not laboratory:
 				banner = "SIGNAL LOST — N: evaluate wave and continue / R: fresh population"
 				break
-			if sim.elapsed >= Sim.EPISODE_SECONDS or sim.alive_count() == 0:
+			if wave_complete():
 				finish_wave()
 				if is_instance_valid(upgrade_screen):
 					break
@@ -245,6 +245,9 @@ func _process(delta: float) -> void:
 		measured_simulation = 0.0
 		measured_time = 0.0
 	queue_redraw()
+
+func wave_complete() -> bool:
+	return sim.alive_count() == 0 or (laboratory and sim.elapsed >= Sim.EPISODE_SECONDS)
 
 func _unhandled_key_input(event: InputEvent) -> void:
 	if is_instance_valid(upgrade_screen):
@@ -392,8 +395,8 @@ func _draw() -> void:
 		draw_set_transform(ORIGIN + pos, robot.heading.angle())
 		draw_texture(robot_texture, Vector2(-16, -16), color)
 		draw_set_transform(ORIGIN)
-		if robot.health < 2:
-			draw_line(pos + Vector2(-6, 16), pos + Vector2(0, 16), AMBER, 2)
+		if robot.health < Sim.ROBOT_HEALTH:
+			draw_line(pos + Vector2(-6, 16), pos + Vector2(-6 + 12 * robot.health / Sim.ROBOT_HEALTH, 16), AMBER, 2)
 		if selected == i:
 			draw_arc(pos, 17, 0, TAU, 28, Color(INK, 0.6), 1, true)
 			if sensors:
@@ -433,7 +436,10 @@ func _draw() -> void:
 	stat(185, "WAVE / TRIAL", "%d / %d" % [wave, trial + 1])
 	stat(219, "ACTIVE / POPULATION", "%d / %d" % [sim.alive_count(), evolution.population_size])
 	stat(253, "SPECIES", str(evolution.species_records.size()))
-	stat(287, "TIME LEFT", "%.1fs" % maxf(0, Sim.EPISODE_SECONDS - sim.elapsed))
+	if laboratory:
+		stat(287, "TRIAL TIME LEFT", "%.1fs" % maxf(0, Sim.EPISODE_SECONDS - sim.elapsed))
+	else:
+		stat(287, "DRONES LEFT", str(sim.alive_count()), AMBER)
 	stat(321, "PLAYER HP", "—" if laboratory else "%d" % sim.player_health, CYAN if sim.player_health > 30 else AMBER)
 	draw_line(Vector2(974, 341), Vector2(1208, 341), Color("29404e"))
 	stat(369, "LAST BEST", "%.1f" % evolution.last_best, AMBER)

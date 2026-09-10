@@ -90,7 +90,7 @@ func run() -> void:
 	sim.step(Sim.STEP, Vector2.ZERO, Vector2(530, 450), true)
 	for i in range(10):
 		sim.step(Sim.STEP)
-	check(sim.robots[0].health == 1, "Bullet must damage robot exactly once")
+	check(sim.robots[0].health == 2, "Bullet must damage robot exactly once")
 	sim.robots[0].position = Vector2(490, 450)
 	sim.step(Sim.STEP, Vector2.ZERO, Vector2(530, 450), false, true)
 	check(sim.kills == 1 and sim.robots[0].parts.death == Sim.DEATH_PENALTY, "Melee kill must count once and record death fitness")
@@ -101,7 +101,7 @@ func run() -> void:
 	sim.step(Sim.STEP, Vector2.ZERO, Vector2(305, 150), true, true)
 	for i in range(20):
 		sim.step(Sim.STEP)
-	check(sim.robots[0].health == 2, "Walls must block bullets and melee")
+	check(sim.robots[0].health == 3, "Walls must block bullets and melee")
 	sim.setup([still], Vector2(450, 150), Vector2(450, 450))
 	sim.step(Sim.STEP)
 	check(sim.player_health == 90 and sim.robots[0].parts.damage == 16, "Physical contact must damage player and reward robot")
