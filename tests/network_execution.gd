@@ -23,6 +23,8 @@ func _initialize() -> void:
 	for pass_index in range(40):
 		if pass_index == 20:
 			neat.unlock_vision()
+		if pass_index == 30:
+			neat.unlock_projectiles()
 		for genome in neat.population:
 			neat.mutate(genome)
 			var inputs = PackedFloat64Array()

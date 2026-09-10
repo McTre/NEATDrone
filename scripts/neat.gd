@@ -84,6 +84,7 @@ var champion = null
 var last_best = 0.0
 var last_average = 0.0
 var vision_enabled = false
+var projectiles_enabled = false
 var pretrained_generations = 0
 
 func navigation_snapshot() -> Dictionary:
@@ -140,6 +141,7 @@ func load_navigation(data: Dictionary) -> bool:
 	last_best = 0.0
 	last_average = 0.0
 	vision_enabled = false
+	projectiles_enabled = false
 	species_records.clear()
 	species_serial = 0
 	assign_species()
@@ -149,8 +151,18 @@ func unlock_vision() -> void:
 	if vision_enabled:
 		return
 	vision_enabled = true
+	add_sensor_inputs(4)
+
+func unlock_projectiles() -> void:
+	if projectiles_enabled:
+		return
+	unlock_vision()
+	projectiles_enabled = true
+	add_sensor_inputs(6)
+
+func add_sensor_inputs(count: int) -> void:
 	var new_inputs: Array = []
-	for i in range(4):
+	for i in range(count):
 		new_inputs.append(next_node)
 		next_node += 1
 	var genomes = population.duplicate()

@@ -1,0 +1,31 @@
+{
+	"active_robots": 8,
+	"fresh_start": {
+		"arrival_rate": 0.0833333333333333,
+		"contact_rate": 0.0,
+		"contacts": 0.0,
+		"fitness": -3.99644109196147,
+		"hits": 0.0,
+		"progress_px": 170.818400382996,
+		"search_reward": 0.260416666666667,
+		"survival_rate": 1.0,
+		"survival_seconds": 16.0000000000004,
+		"visible_seconds": 0.0,
+		"wall_seconds": 7.24722222222229
+	},
+	"offline_generations": 30,
+	"pretrained_start": {
+		"arrival_rate": 0.916666666666667,
+		"contact_rate": 0.0,
+		"contacts": 0.0,
+		"fitness": 36.0169529300266,
+		"hits": 0.0,
+		"progress_px": 517.502947489421,
+		"search_reward": 4.80208333333333,
+		"survival_rate": 1.0,
+		"survival_seconds": 16.0000000000004,
+		"visible_seconds": 0.0,
+		"wall_seconds": 0.261805555555559
+	},
+	"seed": 42
+}

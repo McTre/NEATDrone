@@ -35,6 +35,9 @@ func run() -> void:
 	scene.finish_wave()
 	assert(scene.evolution.vision_enabled)
 	assert(scene.sim.observations(scene.sim.robots[0]).size() == 13)
+	scene.projectile_requested = true
+	scene.finish_wave()
+	assert(scene.sim.observations(scene.sim.robots[0]).size() == 19)
 	var event = InputEventKey.new()
 	event.pressed = true
 	event.physical_keycode = KEY_C
@@ -42,9 +45,11 @@ func run() -> void:
 	scene.reset_population()
 	scene.paused = true
 	scene.vision_requested = true
+	scene.projectile_requested = true
 	for i in range(4):
 		scene.finish_wave()
 	assert(scene.evolution.population.size() == 48)
+	assert(scene.sim.firing_trial and scene.evolution.projectiles_enabled)
 	var generation: int = scene.evolution.generation
 	scene._unhandled_key_input(event)
 	assert(scene.deployment and not scene.laboratory)

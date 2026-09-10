@@ -93,7 +93,7 @@ func run() -> void:
 	check(sim.robots[0].health == 1, "Bullet must damage robot exactly once")
 	sim.robots[0].position = Vector2(490, 450)
 	sim.step(Sim.STEP, Vector2.ZERO, Vector2(530, 450), false, true)
-	check(sim.kills == 1 and sim.robots[0].parts.death == -6, "Melee kill must count once and record death fitness")
+	check(sim.kills == 1 and sim.robots[0].parts.death == Sim.DEATH_PENALTY, "Melee kill must count once and record death fitness")
 	sim.hurt_robot(sim.robots[0], 2)
 	check(sim.kills == 1, "Dead robots must not be counted twice")
 	sim.setup([still], Vector2(450, 150), Vector2(305, 150))

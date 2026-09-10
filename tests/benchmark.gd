@@ -13,6 +13,7 @@ func run() -> void:
 	var output = "res://reports/benchmark.json"
 	var vision = false
 	var snapshot_path = ""
+	var projectiles = false
 	for argument in OS.get_cmdline_user_args():
 		if argument.begins_with("--generations="):
 			generations = maxi(1, argument.get_slice("=", 1).to_int())
@@ -24,13 +25,20 @@ func run() -> void:
 			output = argument.trim_prefix("--output=")
 		elif argument == "--stage=vision":
 			vision = true
+		elif argument == "--stage=projectiles":
+			projectiles = true
+			vision = true
 		elif argument.begins_with("--save-navigation="):
 			snapshot_path = argument.trim_prefix("--save-navigation=")
 	var evolution = Neat.new(seed_value, count)
+	if projectiles:
+		evolution.load_navigation(JSON.parse_string(FileAccess.get_file_as_string("res://assets/navigation.json")))
 	if vision:
 		evolution.unlock_vision()
-	var training_cases = Training.VISION_CASES if vision else Training.TRAIN_CASES
-	var holdout_cases = Training.VISION_HOLDOUT if vision else Training.HOLDOUT_CASES
+	if projectiles:
+		evolution.unlock_projectiles()
+	var training_cases = Training.FIRE_CASES if projectiles else (Training.VISION_CASES if vision else Training.TRAIN_CASES)
+	var holdout_cases = Training.FIRE_HOLDOUT if projectiles else (Training.VISION_HOLDOUT if vision else Training.HOLDOUT_CASES)
 	var baseline = Training.evaluate(evolution.population, holdout_cases)
 	var rows: Array = []
 	var initial_champion_holdout: Dictionary = {}
@@ -51,17 +59,20 @@ func run() -> void:
 			generation + 1, row.best, row.fitness, row.arrival_rate * 100, row.wall_seconds, row.species, row.champion_nodes])
 		if vision:
 			print("  CONTACT %.1f%%  hits/bot %.2f" % [row.contact_rate * 100, row.contacts])
+		if projectiles:
+			print("  SURVIVAL %.1f%% %.1fs  bullet hits %.2f" % [row.survival_rate * 100, row.survival_seconds, row.hits])
 		await process_frame
 	final_champion_holdout = Training.evaluate([evolution.champion], holdout_cases).metrics
 	var final_population = Training.evaluate(evolution.population, holdout_cases)
 	var report = {"seed": seed_value, "population": count, "generations": generations,
-		"stage": "vision" if vision else "navigation",
+		"stage": "projectiles" if projectiles else ("vision" if vision else "navigation"),
 		"baseline_population_holdout": baseline.metrics, "initial_champion_holdout": initial_champion_holdout,
 		"final_champion_holdout": final_champion_holdout, "final_population_holdout": final_population.metrics,
 		"training": rows, "elapsed_seconds": (Time.get_ticks_msec() - started) / 1000.0}
 	if vision:
 		report.blind_population_holdout = Training.evaluate(evolution.population, holdout_cases, true).metrics
-		print("HOLDOUT vision disabled:   ", report.blind_population_holdout)
+		report.disabled_sensor = "projectiles" if projectiles else "player"
+		print("HOLDOUT %s sensor disabled: " % report.disabled_sensor, report.blind_population_holdout)
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(output.get_base_dir()))
 	var file = FileAccess.open(output, FileAccess.WRITE)
 	if file == null:

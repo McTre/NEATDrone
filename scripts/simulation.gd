@@ -12,6 +12,11 @@ const ALERT_RADIUS = 65.0
 const STEP = 1.0 / 60.0
 const EPISODE_SECONDS = 16.0
 const VISION_RANGE = 300.0
+const PROJECTILE_RANGE = 300.0
+const BULLET_SPEED = 700.0
+const DEATH_PENALTY = -35.0
+const HIT_PENALTY = -12.0
+const NAVIGATION_WEIGHT = 0.05
 
 var walls: Array[Rect2] = [
 	Rect2(260, 100, 28, 145), Rect2(612, 335, 28, 145),
@@ -36,6 +41,10 @@ var vision_enabled = false
 var blind_test = false
 var player_path: Array = []
 var path_index = 0
+var projectiles_enabled = false
+var projectile_blind_test = false
+var firing_trial = false
+var fire_interval = 0.28
 
 func setup(genomes: Array, target: Vector2, spawn: Vector2 = Vector2(-1, -1), laboratory: bool = false) -> void:
 	robots.clear()
@@ -53,6 +62,9 @@ func setup(genomes: Array, target: Vector2, spawn: Vector2 = Vector2(-1, -1), la
 	kills = 0
 	initial_population = genomes.size()
 	vision_enabled = not genomes.is_empty() and genomes[0].input_ids.size() > 9
+	projectiles_enabled = not genomes.is_empty() and genomes[0].input_ids.size() > 13
+	projectile_blind_test = false
+	firing_trial = false
 	blind_test = false
 	player_path = []
 	path_index = 0
@@ -70,8 +82,48 @@ func setup(genomes: Array, target: Vector2, spawn: Vector2 = Vector2(-1, -1), la
 			"heading": Vector2.RIGHT, "health": 2.0, "reached": false,
 			"start_distance": position.distance_to(alert), "wall_time": 0.0,
 			"contact_timer": 0.0, "contacts": 0, "visible_time": 0.0,
+			"shots": [], "hits": 0, "lifetime": 0.0, "best_edge": -1.0, "search_cells": {},
 			"parts": {"survival": 0.0, "progress": 0.0, "arrival": 0.0,
-				"damage": 0.0, "wall": 0.0, "death": 0.0, "pursuit": 0.0}})
+				"damage": 0.0, "wall": 0.0, "death": 0.0, "pursuit": 0.0,
+				"search": 0.0, "injury": 0.0}})
+
+func perceived_projectile(robot: Dictionary):
+	if not projectiles_enabled or projectile_blind_test:
+		return null
+	var nearest = null
+	var nearest_distance = PROJECTILE_RANGE * PROJECTILE_RANGE
+	var candidates: Array = robot.shots if firing_trial else bullets
+	for bullet in candidates:
+		var offset: Vector2 = bullet.position - robot.position
+		var distance = offset.length_squared()
+		if distance <= nearest_distance:
+			var length = sqrt(distance)
+			if ray_distance(robot.position, offset.normalized(), length) >= length - 0.001:
+				nearest = bullet
+				nearest_distance = distance
+	return nearest
+
+func score_navigation(robot: Dictionary, before: Vector2, visible: bool) -> void:
+	if not alert_active:
+		return
+	var edge_before = maxf(0, before.distance_to(alert) - ALERT_RADIUS)
+	var edge_after = maxf(0, robot.position.distance_to(alert) - ALERT_RADIUS)
+	if robot.best_edge < 0:
+		robot.best_edge = edge_before
+	var improvement = maxf(0, robot.best_edge - edge_after)
+	robot.best_edge = minf(robot.best_edge, edge_after)
+	if not visible:
+		# Reward first-time progress to the boundary, never to the center.
+		robot.parts.progress = minf(30.0, robot.parts.progress + improvement * NAVIGATION_WEIGHT)
+	if edge_after == 0.0:
+		if not robot.reached:
+			robot.reached = true
+			robot.parts.arrival = 0.0 if visible else 5.0
+		if not visible:
+			var cell = Vector2i((robot.position - alert + Vector2.ONE * ALERT_RADIUS) / 25.0)
+			if not robot.search_cells.has(cell):
+				robot.search_cells[cell] = true
+				robot.parts.search = minf(8.0, robot.parts.search + 0.5)
 
 func sees_player(robot: Dictionary) -> bool:
 	if not vision_enabled or blind_test:
@@ -146,7 +198,7 @@ func ray_distance(origin: Vector2, direction: Vector2, maximum: float = SENSOR_R
 
 func observations(robot: Dictionary) -> PackedFloat64Array:
 	var inputs = PackedFloat64Array()
-	inputs.resize(13 if vision_enabled else 9)
+	inputs.resize(19 if projectiles_enabled else (13 if vision_enabled else 9))
 	var heading: Vector2 = robot.heading
 	var position: Vector2 = robot.position
 	inputs[0] = 1.0 - clampf((ray_distance(position, heading) - ROBOT_RADIUS) / SENSOR_RANGE, 0, 1)
@@ -168,14 +220,27 @@ func observations(robot: Dictionary) -> PackedFloat64Array:
 		inputs[10] = direction.y
 		inputs[11] = offset.length() / VISION_RANGE
 		inputs[12] = 1.0 if visible else 0.0
+	if projectiles_enabled:
+		var bullet = perceived_projectile(robot)
+		if bullet != null:
+			var offset: Vector2 = bullet.position - position
+			var direction = offset.normalized()
+			inputs[13] = direction.x
+			inputs[14] = direction.y
+			inputs[15] = offset.length() / PROJECTILE_RANGE
+			inputs[16] = clampf(bullet.velocity.x / BULLET_SPEED, -1, 1)
+			inputs[17] = clampf(bullet.velocity.y / BULLET_SPEED, -1, 1)
+			inputs[18] = 1.0
 	return inputs
 
 func hurt_robot(robot: Dictionary, amount: float) -> void:
 	if robot.health <= 0:
 		return
 	robot.health -= amount
+	robot.hits += 1
+	robot.parts.injury += HIT_PENALTY * amount
 	if robot.health <= 0:
-		robot.parts.death = -6.0
+		robot.parts.death = DEATH_PENALTY
 		kills += 1
 
 func segment_circle(start: Vector2, finish: Vector2, center: Vector2, radius: float) -> float:
@@ -200,6 +265,11 @@ func step(delta: float, movement: Vector2 = Vector2.ZERO, aim_at: Vector2 = Vect
 	melee_cooldown = maxf(0, melee_cooldown - delta)
 	melee_flash = maxf(0, melee_flash - delta)
 	contact_cooldown = maxf(0, contact_cooldown - delta)
+	if firing_trial and shoot_cooldown <= 0:
+		for robot in robots:
+			if robot.health > 0:
+				robot.shots.append({"position": player, "velocity": player.direction_to(robot.position) * BULLET_SPEED, "life": 1.8})
+		shoot_cooldown = fire_interval
 	if lab and vision_enabled:
 		move_training_player(delta)
 	if not lab and player_health > 0:
@@ -209,7 +279,7 @@ func step(delta: float, movement: Vector2 = Vector2.ZERO, aim_at: Vector2 = Vect
 		if aim_at.distance_to(player) > 1:
 			aim = player.direction_to(aim_at)
 		if shooting and shoot_cooldown <= 0:
-			bullets.append({"position": player, "velocity": aim * 700.0, "life": 1.8})
+			bullets.append({"position": player, "velocity": aim * BULLET_SPEED, "life": 1.8})
 			shoot_cooldown = 0.14
 		if melee and melee_cooldown <= 0:
 			melee_cooldown = 0.55
@@ -231,15 +301,11 @@ func step(delta: float, movement: Vector2 = Vector2.ZERO, aim_at: Vector2 = Vect
 		if output.length_squared() > 0.01:
 			robot.heading = output.normalized()
 		robot.parts.survival += delta * 0.08
+		robot.lifetime += delta
 		if visible:
 			robot.visible_time += delta
-			robot.parts.pursuit += (before.distance_to(player) - robot.position.distance_to(player)) * 0.15
-		if alert_active:
-			# Signed potential difference, so cycling cannot farm progress.
-			robot.parts.progress += (before.distance_to(alert) - robot.position.distance_to(alert)) * 0.10
-			if not robot.reached and robot.position.distance_to(alert) <= ALERT_RADIUS:
-				robot.reached = true
-				robot.parts.arrival = 35.0 + 15.0 * maxf(0, 1.0 - elapsed / EPISODE_SECONDS)
+			robot.parts.pursuit = clampf(robot.parts.pursuit + (before.distance_to(player) - robot.position.distance_to(player)) * 0.15, -30, 30)
+		score_navigation(robot, before, visible)
 		var requested_distance = output.length() * ROBOT_SPEED * delta
 		if requested_distance > 0.1 and before.distance_to(robot.position) < requested_distance * 0.35:
 			robot.wall_time += delta
@@ -252,20 +318,25 @@ func step(delta: float, movement: Vector2 = Vector2.ZERO, aim_at: Vector2 = Vect
 			robot.contacts += 1
 			robot.parts.damage += 8.0
 			robot.contact_timer = 0.45
+		if firing_trial:
+			advance_shots(robot.shots, [robot], delta)
 		if not lab and player_health > 0 and contact_cooldown <= 0 and touching:
 			player_health = maxf(0, player_health - 10)
 			robot.contacts += 1
 			robot.parts.damage += 8.0
 			contact_cooldown = 0.45
-	for index in range(bullets.size() - 1, -1, -1):
-		var bullet = bullets[index]
+	advance_shots(bullets, robots, delta)
+
+func advance_shots(shots: Array, targets: Array, delta: float) -> void:
+	for index in range(shots.size() - 1, -1, -1):
+		var bullet = shots[index]
 		var start: Vector2 = bullet.position
 		var finish: Vector2 = start + bullet.velocity * delta
 		var length = start.distance_to(finish)
-		var nearest = ray_distance(start, bullet.velocity.normalized(), length) / length
+		var nearest = ray_distance(start, bullet.velocity.normalized(), length) / maxf(length, 0.000001)
 		var wall_hit = nearest < 1.0
 		var victim = null
-		for robot in robots:
+		for robot in targets:
 			if robot.health <= 0:
 				continue
 			var hit = segment_circle(start, finish, robot.position, ROBOT_RADIUS + 2)
@@ -276,7 +347,7 @@ func step(delta: float, movement: Vector2 = Vector2.ZERO, aim_at: Vector2 = Vect
 		if victim != null:
 			hurt_robot(victim, 1.0)
 		if victim != null or wall_hit or bullet.life <= 0:
-			bullets.remove_at(index)
+			shots.remove_at(index)
 		else:
 			bullet.position = finish
 
@@ -300,16 +371,24 @@ func metrics() -> Dictionary:
 	var contacted = 0
 	var contacts = 0
 	var visible_time = 0.0
+	var hits = 0
+	var lifetime = 0.0
+	var search = 0.0
 	for robot in robots:
 		reached += 1 if robot.reached else 0
 		wall_time += robot.wall_time
-		progress += robot.parts.progress / 0.10
+		progress += robot.parts.progress / NAVIGATION_WEIGHT
 		score += fitness(robot)
 		contacted += 1 if robot.contacts > 0 else 0
 		contacts += robot.contacts
 		visible_time += robot.visible_time
+		hits += robot.hits
+		lifetime += robot.lifetime
+		search += robot.parts.search
 	var count = maxi(1, robots.size())
 	return {"arrival_rate": float(reached) / count, "wall_seconds": wall_time / count,
 		"progress_px": progress / count, "fitness": score / count,
 		"contact_rate": float(contacted) / count, "contacts": float(contacts) / count,
-		"visible_seconds": visible_time / count}
+		"visible_seconds": visible_time / count, "hits": float(hits) / count,
+		"survival_seconds": lifetime / count, "survival_rate": float(alive_count()) / count,
+		"search_reward": search / count}

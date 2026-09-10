@@ -21,7 +21,9 @@ var speed = 1
 @export_range(4, 16) var combat_enemies = 8
 @export var pretrained_movement = true
 @export_range(0, 100) var vision_generation = 6 # 0 disables scheduled upgrade.
+@export_range(0, 100) var projectile_generation = 10
 var vision_requested = false
+var projectile_requested = false
 var deployment = false
 var trial = 0
 var totals: Array = []
@@ -71,6 +73,8 @@ func reset_population() -> void:
 			push_warning("Navigation starter could not be loaded; using a fresh population")
 	if vision_generation == 1:
 		evolution.unlock_vision()
+	if projectile_generation == 1:
+		evolution.unlock_projectiles()
 	history.clear()
 	last_metrics.clear()
 	wave = 1
@@ -78,17 +82,21 @@ func reset_population() -> void:
 	paused = false
 	deployment = false
 	vision_requested = false
+	projectile_requested = false
 	totals.resize(evolution.population_size)
 	totals.fill(0.0)
 	var report = FileAccess.open(report_path, FileAccess.WRITE)
 	if report:
-		report.store_line("generation,mode,stage,best_fitness,mean_fitness,arrival_rate,wall_seconds,progress_px,species,contact_rate,contacts")
+		report.store_line("generation,mode,stage,best_fitness,mean_fitness,arrival_rate,wall_seconds,progress_px,species,contact_rate,contacts,hits,survival_seconds,survival_rate")
 	begin_wave()
 
 func begin_wave() -> void:
 	selected = 0
 	if laboratory:
-		if evolution.vision_enabled:
+		if evolution.projectiles_enabled:
+			Training.setup_fire(sim, evolution.population, Training.FIRE_CASES[trial])
+			banner = "Gunfire lab: player beside alert area. Bullets shown for selected robot. C: combat test."
+		elif evolution.vision_enabled:
 			Training.setup_vision(sim, evolution.population, Training.VISION_CASES[trial])
 			banner = "Vision lab: moving target, independent contact scores. C: try this population in combat."
 		else:
@@ -108,7 +116,9 @@ func begin_wave() -> void:
 		if deployment:
 			banner = "Trained population test — evolution frozen. C: return to laboratory."
 		elif evolution.vision_enabled:
-			banner = "Vision online: range 300, walls block sight. Movement is still entirely evolved."
+			banner = "Vision online. P: request projectile sensing at the next generation."
+		if evolution.projectiles_enabled and not deployment:
+			banner = "Projectile vision online: visible bullet direction, distance and velocity. No automatic dodge."
 
 func finish_wave() -> void:
 	if deployment:
@@ -133,18 +143,27 @@ func finish_wave() -> void:
 		var report = FileAccess.open(report_path, FileAccess.READ_WRITE)
 		if report:
 			report.seek_end()
-			report.store_line("%d,%s,%s,%.3f,%.3f,%.4f,%.3f,%.3f,%d,%.4f,%.3f" % [evaluated_generation,
-				"lab" if laboratory else "combat", "vision" if evolution.vision_enabled else "navigation", evolution.last_best, evolution.last_average,
+			report.store_line("%d,%s,%s,%.3f,%.3f,%.4f,%.3f,%.3f,%d,%.4f,%.3f,%.3f,%.3f,%.4f" % [evaluated_generation,
+				"lab" if laboratory else "combat", stage_name(), evolution.last_best, evolution.last_average,
 				last_metrics.arrival_rate, last_metrics.wall_seconds, last_metrics.progress_px,
-				evolution.species_records.size(), last_metrics.contact_rate, last_metrics.contacts])
+				evolution.species_records.size(), last_metrics.contact_rate, last_metrics.contacts,
+				last_metrics.hits, last_metrics.survival_seconds, last_metrics.survival_rate])
 		if not evolution.vision_enabled and (vision_requested or (vision_generation > 0 and evolution.generation >= vision_generation)):
 			evolution.unlock_vision()
+			vision_requested = false
+			history.clear()
+		if not evolution.projectiles_enabled and (projectile_requested or (projectile_generation > 0 and evolution.vision_enabled and evolution.generation >= projectile_generation)):
+			evolution.unlock_projectiles()
+			projectile_requested = false
 			vision_requested = false
 			history.clear()
 		trial = 0
 		totals.fill(0.0)
 		last_metrics.clear()
 	begin_wave()
+
+func stage_name() -> String:
+	return "projectiles" if evolution.projectiles_enabled else ("vision" if evolution.vision_enabled else "navigation")
 
 func _process(delta: float) -> void:
 	var now = Time.get_ticks_usec()
@@ -200,6 +219,10 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			if not evolution.vision_enabled and not deployment:
 				vision_requested = true
 				banner = "Vision upgrade queued for the next generation. Current trials will finish first."
+		KEY_P:
+			if not evolution.projectiles_enabled and not deployment:
+				projectile_requested = true
+				banner = "Projectile vision queued for the next generation (includes player vision)."
 		KEY_C:
 			if laboratory or deployment:
 				deployment = not deployment
@@ -231,7 +254,8 @@ func save_champion(path: String = "user://champion.json") -> void:
 	var json = JSON.stringify({"generation": evolution.generation - 1,
 		"seed": seed_value, "fitness": genome.fitness, "nodes": genome.nodes,
 		"genes": genome.genes, "inputs": genome.input_ids.size(),
-		"input_ids": genome.input_ids, "vision": evolution.vision_enabled}, "\t")
+		"input_ids": genome.input_ids, "vision": evolution.vision_enabled,
+		"projectiles": evolution.projectiles_enabled}, "\t")
 	if OS.has_feature("web"):
 		JavaScriptBridge.download_buffer(json.to_utf8_buffer(), "neatdrone-champion.json", "application/json")
 		banner = "Champion downloaded as neatdrone-champion.json."
@@ -271,9 +295,9 @@ func _draw() -> void:
 		next_text_update = Time.get_ticks_msec() + 100
 	draw_rect(Rect2(0, 0, 1280, 800), Color("080e16"))
 	label_at(Vector2(28, 39), "NEAT / DRONE", 27, CYAN)
-	label_at(Vector2(28, 64), "EVOLUTION OBSERVATORY     /     STAGE B" if evolution.vision_enabled else "EVOLUTION OBSERVATORY     /     STAGE A", 12, MUTED)
-	label_at(Vector2(570, 38), "VISUAL PURSUIT" if evolution.vision_enabled else "ALERT NAVIGATION", 18)
-	label_at(Vector2(570, 61), "13 observations / 2 outputs / occluded vision" if evolution.vision_enabled else "9 observations / 2 outputs / no vision", 13, MUTED)
+	label_at(Vector2(28, 64), "EVOLUTION OBSERVATORY / " + stage_name().to_upper(), 12, MUTED)
+	label_at(Vector2(570, 38), "PROJECTILE VISION" if evolution.projectiles_enabled else ("VISUAL PURSUIT" if evolution.vision_enabled else "AREA SEARCH"), 18)
+	label_at(Vector2(570, 61), "%d observations / 2 outputs / learned movement" % evolution.population[0].input_ids.size(), 13, MUTED)
 	draw_rect(Rect2(1044, 22, 188, 40), Color("132d30"))
 	label_at(Vector2(1058, 48), "POPULATION TEST" if deployment else ("LABORATORY" if laboratory else "LIVE COMBAT"), 16, CYAN)
 	label_at(Vector2(28, 103), "01  /  TEST CHAMBER", 14, MUTED)
@@ -315,6 +339,10 @@ func _draw() -> void:
 		if selected == i:
 			draw_arc(pos, 17, 0, TAU, 28, Color(INK, 0.6), 1, true)
 			if sensors:
+				var observed_bullet = sim.perceived_projectile(robot)
+				if observed_bullet != null:
+					draw_line(pos, observed_bullet.position, AMBER, 2, true)
+					draw_line(observed_bullet.position, observed_bullet.position + observed_bullet.velocity * 0.05, AMBER, 2, true)
 				if sim.vision_enabled:
 					for segment in range(96):
 						var a = pos + Vector2.from_angle(segment * TAU / 96) * Sim.VISION_RANGE
@@ -327,7 +355,8 @@ func _draw() -> void:
 					draw_line(pos, pos + direction * sim.ray_distance(pos, direction), Color(AMBER, 0.55), 1, true)
 				if sim.alert_active:
 					draw_line(pos, sim.alert, Color(CYAN, 0.28), 1, true)
-	for bullet in sim.bullets:
+	var displayed_bullets: Array = sim.robots[selected].shots if sim.firing_trial else sim.bullets
+	for bullet in displayed_bullets:
 		draw_line(bullet.position - bullet.velocity.normalized() * 9, bullet.position, INK, 2.5, true)
 	if not laboratory or sim.vision_enabled:
 		var player_color = CYAN if sim.player_health > 0 else MUTED
@@ -353,18 +382,21 @@ func _draw() -> void:
 	stat(401, "LAST MEAN", "%.1f" % evolution.last_average, CYAN)
 	draw_chart(Rect2(974, 420, 234, 68))
 	var metrics = sim.metrics()
-	stat(518, "CONTACT (NOW)" if sim.vision_enabled else "ARRIVED (NOW)", "%d%%" % ((metrics.contact_rate if sim.vision_enabled else metrics.arrival_rate) * 100), CYAN)
-	stat(550, "WALL TIME / BOT", "%.1fs" % metrics.wall_seconds)
+	stat(518, "SURVIVING" if sim.projectiles_enabled else ("CONTACT (NOW)" if sim.vision_enabled else "ARRIVED (NOW)"), "%d%%" % ((metrics.survival_rate if sim.projectiles_enabled else (metrics.contact_rate if sim.vision_enabled else metrics.arrival_rate)) * 100), CYAN)
+	if sim.projectiles_enabled:
+		stat(550, "HITS / CONTACT", "%.1f / %.0f%%" % [metrics.hits, metrics.contact_rate * 100])
+	else:
+		stat(550, "WALL TIME / BOT", "%.1fs" % metrics.wall_seconds)
 	var chosen = sim.robots[selected]
 	label_at(Vector2(974, 587), "BOT %02d / SPECIES %d" % [selected + 1, chosen.genome.species], 13, MUTED)
 	label_at(Vector2(974, 611), "%d nodes · %d links · %s" % [chosen.genome.nodes.size(), chosen.genome.genes.size(), "SEES" if sim.sees_player(chosen) else "—"], 12)
-	label_at(Vector2(974, 637), "Progress %+.1f   Arrival %+.1f" % [chosen.parts.progress, chosen.parts.arrival], 12, CYAN)
-	label_at(Vector2(974, 658), "Wall %+.1f   Damage %+.1f" % [chosen.parts.wall, chosen.parts.damage], 12, AMBER)
-	label_at(Vector2(974, 680), "Pursuit %+.1f / HP %+.1f / KO %+.0f" % [chosen.parts.pursuit, chosen.parts.survival, chosen.parts.death], 11, MUTED)
+	label_at(Vector2(974, 637), "Move %+.1f Arr %+.0f Search %+.1f" % [chosen.parts.progress, chosen.parts.arrival, chosen.parts.search], 11, CYAN)
+	label_at(Vector2(974, 658), "Hit %+.0f Death %+.0f Dmg %+.0f" % [chosen.parts.injury, chosen.parts.death, chosen.parts.damage], 11, AMBER)
+	label_at(Vector2(974, 680), "Chase %+.1f Wall %+.1f Alive %+.1f" % [chosen.parts.pursuit, chosen.parts.wall, chosen.parts.survival], 10, MUTED)
 
 	label_at(Vector2(28, 732), banner, 14, CYAN if sim.player_health > 0 else AMBER)
 	label_at(Vector2(28, 760), "WASD  move     LMB  shoot     RMB  melee     SPACE  pause     T  lab / combat (reset)     1 / 2 / 3  speed", 13, INK)
-	label_at(Vector2(28, 785), "V  queue vision     C  lab / trained combat     H  sensors     Q  bot     N  next     R  reset     G  seed     E  export", 13, MUTED)
+	label_at(Vector2(28, 785), "V  vision   P  projectile vision   C  lab / combat   H  sensors   Q  bot   N  next   R  reset   G  seed   E  export", 13, MUTED)
 	for i in range(text_index, text_labels.size()):
 		text_labels[i].visible = false
 

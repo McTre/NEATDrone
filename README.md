@@ -1,7 +1,8 @@
 # NEATDrone — Learning Lab
 
 Godot 4.7.2 -projekti. POC toteuttaa **Stage A:n** (liikkuminen, seinäsensorit
-ja Master AI:n hälytysalue) sekä **Stage B:n** (rajattu näkö ja pelaajan tavoittelu).
+ja Master AI:n hälytysalue), **Stage B:n** (rajattu näkö ja pelaajan tavoittelu)
+sekä **Stage C:n** (pelaajan luotien havainnointi).
 
 ## Käynnistys
 
@@ -18,8 +19,8 @@ Pelissä on kiinteä areena, pelaaja, **8 robottia** ja 16 sekunnin aallot.
 Tavallinen taistelu alkaa esiharjoitelluilla liikkumisverkoilla.
 Mene turkoosiin ympyrään: alueen keskipiste välitetään roboteille loppuaallon
 ajaksi. Signaali ei seuraa pelaajaa. Robotit aloittavat ilman näköä ja saavat
-näkösensorin oletuksena sukupolven 6 alussa. Ammuksia tai toisiaan ne eivät
-vielä havaitse. Pelaajan piilossa oleva sijainti ei välity liikkumisverkkoon.
+näkösensorin oletuksena sukupolven 6 alussa ja luotisensorit sukupolvessa 10.
+Toisiaan ne eivät vielä havaitse. Pelaajan piilossa oleva sijainti ei välity liikkumisverkkoon.
 
 | Ohjaus | Toiminto |
 | --- | --- |
@@ -28,6 +29,7 @@ vielä havaitse. Pelaajan piilossa oleva sijainti ei välity liikkumisverkkoon.
 | Space | Tauko |
 | T | Vaihda harjoittelun ja taistelun välillä; aloittaa uuden populaation |
 | V | Pyydä näköpäivitys seuraavan kokonaisen sukupolven rajalle |
+| P | Pyydä luotien havainnointi seuraavalle sukupolvelle; sisältää pelaajan näön |
 | C | Kokeile harjoittelupopulaatiota taistelussa / palaa laboratorioon; populaatio säilyy |
 | 1 / 2 / 3 | Simulaation nopeus 1× / 4× / 8× (koneen suorituskyvyn rajoissa) |
 | H (tai F1 työpöydällä) | Seinäsensorit, hälytysvektori, näön kantama ja todellinen näköyhteys |
@@ -42,6 +44,8 @@ Laboratorion populaatiokoon, `Combat Enemies` -vihollismäärän, siemenen ja `V
 `LearningLab`-juurisolmun Inspectorissa. Näköpäivityksen arvo 0 estää automaattisen
 päivityksen, 1 aloittaa suoraan näöllä ja oletus 6 lisää näön viiden arvioidun
 sukupolven jälkeen. V-pyyntö toimii myös automaattisen päivityksen ollessa pois.
+`Projectile Generation` toimii vastaavasti luotihavainnoille (oletus 10).
+Automaattinen luotipäivitys edellyttää pelaajan näköä; P lisää tarvittaessa molemmat.
 
 ## Oppimisen kokeileminen
 
@@ -58,6 +62,14 @@ Kohde kulkee ennalta määrättyä reittiä 65 pikseliä sekunnissa. Reitti ei v
 roboteille. Kohde on kuolematon, ja jokaisella robotilla on oma kontaktivahingon
 ajastin: yksi genomi ei vie toiselta pisteytysmahdollisuuksia. Aseet ovat pois.
 Hälytys pysyy kiinteänä alueena, vaikka kohde liikkuu muualla.
+
+Luotipäivityksen jälkeen laboratorio käyttää neljää paikallaan ampuvan pelaajan
+tehtävää. Pelaaja on hälytysalueen vieressä ja tähtää robotin sijaintiin laukaisuhetkellä.
+Jokaisella genomilla on omat luotinsa, joten robotit eivät suojaa toisiaan.
+Kuvassa näkyvät valitun robotin luodit. H näyttää havaitun luodin ja sen lentosuunnan.
+Verkko saa lähimmän näkyvän luodin suunnan, etäisyyden, nopeusvektorin ja
+näkyvyyslipun: yhteensä kuusi uutta syötettä, 19 kaikkiaan. Kantama on 300 pikseliä,
+seinät peittävät havainnot. Väistöliikettä ei ohjelmoida valmiiksi.
 
 Näköpäivitys säilyttää populaation, innovaatiotunnisteet ja piiloneuronit.
 Uudet yhteydet alkavat nollapainoista, joten näkö ei heti muuta toimintaa.
@@ -102,14 +114,25 @@ Aloitusjoukon uudelleenharjoittelu:
 Komento korvaa mukana toimitetun aloitusjoukon. Tavallinen pelaaminen
 ei aja tätä harjoittelua uudelleen eikä odota sitä pelin käynnistyessä.
 
-[Aloitusjoukon vertailutulokset](docs/pretrained-start.md): siemenen 42 kahdeksan
-robotin saapumisprosentti testitehtävillä oli 77,1 %, satunnaisella aloituksella 8,3 %.
+[Aiemman aloitusjoukon vertailutulokset](docs/pretrained-start.md) koskevat vanhaa
+keskipistepisteytystä. Mukana tuleva aloitusjoukko on harjoiteltu uudelleen alueen
+reunaan etenemisen ja alueen tutkimisen pisteytyksellä.
+Uudella joukolla kahdeksan robotin saapumisprosentti kuudessa erillisessä tehtävässä
+on 91,7 % (satunnainen aloitus 8,3 %, siemen 42).
+[Uuden aloitusjoukon raakadata](docs/pretrained-boundary-start.json) ja
+[30 sukupolven harjoitusajo](docs/pretraining-boundary.json) ovat mukana.
+Luku mittaa alueelle saapumista, ei vielä taistelutaitoa.
 
 Fitness on neljän tehtävän keskiarvo. Se koostuu tavoitetta kohti tapahtuneesta
-nettoetenemisestä, kertaluonteisesta saapumispalkkiosta, pienestä elossaolo-osasta
-ja seinään juuttumisen rangaistuksesta. Taistelussa mukaan tulevat pelaajalle
-tehty vahinko ja robotin kuolema. Etenemisen edestakaisella toistamisella ei voi
-kerätä ylimääräistä palkkiota. Seinäsensorit eivät käännä robotteja automaattisesti.
+ensimmäistä kertaa saavutetusta etenemisestä hälytysalueen reunaan (enintään 30),
+kertaluonteisesta saapumisesta (+5) ja uusien 25 pikselin ruutujen tutkimisesta
+alueen sisällä (+0,5, enintään 8). Keskipisteen lähestyminen ei enää tuota
+etenemispisteitä. Paikallaan olo ja saman reitin toistaminen eivät toista palkkioita.
+Kun pelaaja näkyy, aluepalkkiot väistyvät pelaajan tavoittelun tieltä.
+Lisäksi mukana ovat pieni elossaolo-osa ja seinään juuttumisen rangaistus.
+Osuma vähentää 12 pistettä menetettyä kestävyyspistettä kohti, kuolema vielä 35.
+Kahden luodin tappo tuottaa siis yhteensä −59 pistettä. Pelaajalle tehty
+kontaktivahinko palkitaan erikseen. Seinäsensorit eivät käännä robotteja automaattisesti.
 
 Stage B lisää pienen palkkion robotin omasta liikkeestä kohti sillä hetkellä
 näkyvää kohdetta sekä kontaktivahingosta. Kohteen oma liike ei kerrytä
@@ -129,6 +152,7 @@ kannattaa käyttää harjoittelua ja erillistä vertailuajoa.
 $godotExe = 'C:\Users\immuS\Documents\Godot\Godot_v4.7.2-stable_win64_console.exe'
 & $godotExe --headless --path . --script tests/core_tests.gd
 & $godotExe --headless --path . --script tests/vision_tests.gd
+& $godotExe --headless --path . --script tests/projectile_tests.gd
 & $godotExe --headless --path . --script tests/network_execution.gd
 & $godotExe --headless --path . --script tests/pretrained_start.gd
 & $godotExe --headless --path . --script tests/scene_smoke.gd
@@ -203,9 +227,11 @@ Godotin välimuistit ja paikalliset raportit on rajattu pois Gitistä.
 
 ## Seuraava vaihe
 
-Ammusten havainnointia, pimeyttä, kuuloa ja mukautuvaa laitepäivitysten valintaa
-ei vielä ole. Seuraava POC-askel on ammusten havainnointi ja väistämisen
-mittaaminen, kun pelaajan tavoittelua on kokeiltu riittävästi.
+Pimeyttä, kuuloa ja mukautuvaa laitepäivitysten valintaa ei vielä ole.
+Luotien havainnointi on toteutettu, mutta toimivaa väistöä ja hyökkäystä ei ole
+vielä osoitettu. [Ensimmäinen ampumiskoe](docs/projectile-results.md) paransi
+harjoitustilanteiden selviytymistä, mutta ei pelaajan uhkaamista eikä yleistymistä.
+Seuraava oppimiskoe tarvitsee asteittaisen siirtymän tavoittelusta tulen alle.
 
 Alkuperäinen visio: [masterplan](NEATDrone-masterplan.md).
 Kokeen rajaus: [POC-suunnitelma](NEATDrone-poc.md).

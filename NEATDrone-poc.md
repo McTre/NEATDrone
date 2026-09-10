@@ -1,5 +1,20 @@
 # NEATDrone — Proof of Concept
 
+Implementation update (2026-09-10): Stage C now exposes the nearest visible player
+bullet's direction, normalized distance, velocity and presence (six inputs; 19 total).
+Range is 300 pixels and walls occlude bullets. P queues this upgrade at a generation
+boundary; the default automatic unlock is generation 10, after player vision.
+Movement remains entirely controlled by NEAT. The firing laboratory gives every
+genome independent shots from a stationary player beside the alert area.
+
+Navigation fitness now rewards first progress to the alert boundary, arrival once,
+and capped exploration of new cells inside the area. It does not reward further
+progress toward the center; player visibility suppresses navigation rewards.
+Damage costs 12 per health point and death costs an additional 35.
+The bundled navigation population was retrained with this objective.
+See [initial projectile experiment](docs/projectile-results.md) for measured limits:
+projectile perception works, but useful combat evasion has not yet been demonstrated.
+
 ## 1. Purpose
 
 This POC is intentionally tiny.
