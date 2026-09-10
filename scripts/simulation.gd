@@ -16,7 +16,7 @@ const PROJECTILE_RANGE = 300.0
 const BULLET_SPEED = 700.0
 const DEATH_PENALTY = -35.0
 const HIT_PENALTY = -12.0
-const NAVIGATION_WEIGHT = 0.05
+const NAVIGATION_WEIGHT = 0.08
 
 var walls: Array[Rect2] = [
 	Rect2(260, 100, 28, 145), Rect2(612, 335, 28, 145),
@@ -37,6 +37,7 @@ var melee_flash = 0.0
 var contact_cooldown = 0.0
 var kills = 0
 var initial_population = 0
+var vision_range = VISION_RANGE
 var vision_enabled = false
 var blind_test = false
 var player_path: Array = []
@@ -61,6 +62,7 @@ func setup(genomes: Array, target: Vector2, spawn: Vector2 = Vector2(-1, -1), la
 	contact_cooldown = 0.0
 	kills = 0
 	initial_population = genomes.size()
+	vision_range = VISION_RANGE
 	vision_enabled = not genomes.is_empty() and genomes[0].input_ids.size() > 9
 	projectiles_enabled = not genomes.is_empty() and genomes[0].input_ids.size() > 13
 	projectile_blind_test = false
@@ -130,7 +132,7 @@ func sees_player(robot: Dictionary) -> bool:
 		return false
 	var offset: Vector2 = player - robot.position
 	var distance = offset.length()
-	return distance <= VISION_RANGE and ray_distance(robot.position, offset.normalized(), distance) >= distance - 0.001
+	return distance <= vision_range and ray_distance(robot.position, offset.normalized(), distance) >= distance - 0.001
 
 func move_training_player(delta: float) -> void:
 	if player_path.is_empty():
@@ -204,14 +206,18 @@ func observations(robot: Dictionary) -> PackedFloat64Array:
 	inputs[0] = 1.0 - clampf((ray_distance(position, heading) - ROBOT_RADIUS) / SENSOR_RANGE, 0, 1)
 	inputs[1] = 1.0 - clampf((ray_distance(position, heading.rotated(-PI / 2)) - ROBOT_RADIUS) / SENSOR_RANGE, 0, 1)
 	inputs[2] = 1.0 - clampf((ray_distance(position, heading.rotated(PI / 2)) - ROBOT_RADIUS) / SENSOR_RANGE, 0, 1)
-	var target_vector: Vector2 = alert - robot.position if alert_active else Vector2.ZERO
+	# Direct visual evidence takes priority over the stale area report.
+	# This gates observations only; movement still comes from the network.
+	var player_visible = sees_player(robot)
+	var signal_available = alert_active and not player_visible
+	var target_vector: Vector2 = alert - robot.position if signal_available else Vector2.ZERO
 	var target_direction = target_vector.normalized()
 	inputs[3] = target_direction.x
 	inputs[4] = target_direction.y
 	inputs[5] = target_vector.length() / SIZE.length()
 	inputs[6] = robot.velocity.x / ROBOT_SPEED
 	inputs[7] = robot.velocity.y / ROBOT_SPEED
-	inputs[8] = 1.0 if alert_active else 0.0
+	inputs[8] = 1.0 if signal_available else 0.0
 	if vision_enabled:
 		var visible = sees_player(robot)
 		var offset: Vector2 = player - robot.position if visible else Vector2.ZERO
@@ -304,7 +310,7 @@ func step(delta: float, movement: Vector2 = Vector2.ZERO, aim_at: Vector2 = Vect
 		robot.lifetime += delta
 		if visible:
 			robot.visible_time += delta
-			robot.parts.pursuit = clampf(robot.parts.pursuit + (before.distance_to(player) - robot.position.distance_to(player)) * 0.15, -30, 30)
+			robot.parts.pursuit = clampf(robot.parts.pursuit + (before.distance_to(player) - robot.position.distance_to(player)) * 0.35, -60, 60)
 		score_navigation(robot, before, visible)
 		var requested_distance = output.length() * ROBOT_SPEED * delta
 		if requested_distance > 0.1 and before.distance_to(robot.position) < requested_distance * 0.35:
@@ -316,14 +322,14 @@ func step(delta: float, movement: Vector2 = Vector2.ZERO, aim_at: Vector2 = Vect
 			# Each genome has an independent contact clock and invulnerable target.
 			# One genome cannot steal another genome's evaluation opportunities.
 			robot.contacts += 1
-			robot.parts.damage += 8.0
+			robot.parts.damage += 16.0
 			robot.contact_timer = 0.45
 		if firing_trial:
 			advance_shots(robot.shots, [robot], delta)
 		if not lab and player_health > 0 and contact_cooldown <= 0 and touching:
 			player_health = maxf(0, player_health - 10)
 			robot.contacts += 1
-			robot.parts.damage += 8.0
+			robot.parts.damage += 16.0
 			contact_cooldown = 0.45
 	advance_shots(bullets, robots, delta)
 

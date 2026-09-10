@@ -18,8 +18,9 @@ PowerShell tämän projektin kansiossa:
 Pelissä on kiinteä areena, pelaaja, **8 robottia** ja 16 sekunnin aallot.
 Tavallinen taistelu alkaa esiharjoitelluilla liikkumisverkoilla.
 Mene turkoosiin ympyrään: alueen keskipiste välitetään roboteille loppuaallon
-ajaksi. Signaali ei seuraa pelaajaa. Robotit aloittavat ilman näköä ja saavat
-näkösensorin oletuksena sukupolven 6 alussa ja luotisensorit sukupolvessa 10.
+ajaksi. Signaali ei seuraa pelaajaa. Taistelun robotit aloittavat 120 pikselin
+näöllä ja esiharjoitellulla pelaajan tavoittelulla. Näkö laajenee 300 pikseliin
+sukupolven 6 alussa ja luotisensorit avautuvat sukupolvessa 10.
 Toisiaan ne eivät vielä havaitse. Pelaajan piilossa oleva sijainti ei välity liikkumisverkkoon.
 
 | Ohjaus | Toiminto |
@@ -42,10 +43,10 @@ Toisiaan ne eivät vielä havaitse. Pelaajan piilossa oleva sijainti ei välity 
 F5 tarkoittaa pelin omaa näppäintä peli-ikkunan ollessa aktiivinen.
 Laboratorion populaatiokoon, `Combat Enemies` -vihollismäärän, siemenen ja `Vision Generation` -asetuksen voi muuttaa
 `LearningLab`-juurisolmun Inspectorissa. Näköpäivityksen arvo 0 estää automaattisen
-päivityksen, 1 aloittaa suoraan näöllä ja oletus 6 lisää näön viiden arvioidun
+päivityksen, 1 aloittaa laajalla näöllä ja oletus 6 laajentaa näön viiden arvioidun
 sukupolven jälkeen. V-pyyntö toimii myös automaattisen päivityksen ollessa pois.
 `Projectile Generation` toimii vastaavasti luotihavainnoille (oletus 10).
-Automaattinen luotipäivitys edellyttää pelaajan näköä; P lisää tarvittaessa molemmat.
+Automaattinen luotipäivitys edellyttää laajaa näköä; P lisää tarvittaessa molemmat.
 
 ## Oppimisen kokeileminen
 
@@ -109,7 +110,9 @@ näkyvyyslipun: yhteensä kuusi uutta syötettä, 19 kaikkiaan. Kantama on 300 p
 seinät peittävät havainnot. Väistöliikettä ei ohjelmoida valmiiksi.
 
 Näköpäivitys säilyttää populaation, innovaatiotunnisteet ja piiloneuronit.
-Uudet yhteydet alkavat nollapainoista, joten näkö ei heti muuta toimintaa.
+Taistelun kantamapäivitys säilyttää samat 13 syötettä ja opitut yhteydet.
+Etäisyyssyötteen asteikko pysyy samana kantaman kasvaessa.
+Laboratorion ensimmäiset näkösyötteet ja uudet luotisyötteet alkavat nollapainoista.
 Päivitys tapahtuu vasta kaikkien nykyisen sukupolven tehtävien jälkeen.
 Fitness-kaavio ja lajien vanhat ennätykset nollataan, koska oppimistehtävä muuttuu.
 CSV säilyttää molempien vaiheiden tulokset ja erottaa ne `stage`-sarakkeella.
@@ -125,14 +128,30 @@ käyttäytymisen kokeilemiseen.
 
 ## Esiharjoiteltu aloitus
 
-`assets/navigation.json` sisältää 48 liikkumisverkkoa, joita on harjoiteltu
-30 sukupolvea vain Stage A:n tehtävillä. Uuden taistelupelin kahdeksan verkkoa
+`assets/basic.json` sisältää 12 verkkoa, jotka valittiin 32 yksilön populaatiosta
+40 sukupolven harjoittelun jälkeen. Populaatiota harjoiteltiin
+sekä hälytysalueille että lähellä liikkuvan aseettoman pelaajan tavoitteluun.
+Pohjana on aiempi 30 sukupolven navigointiharjoittelu (`assets/navigation.json`).
+Uuden taistelupelin kahdeksan verkkoa
 valitaan tästä joukosta siemenen perusteella ilman palautusta. Sama siemen
 antaa saman aloituksen. `Pretrained Movement` -asetuksella esiharjoittelun
-voi kytkeä pois. Näköä tai pelaajan taktiikoita ei ole esiharjoiteltu.
+voi kytkeä pois; lyhyt näkö jää silloinkin käyttöön, mutta verkot ovat satunnaisia.
+Pelaajan todellisia taktiikoita tai tulituksen väistämistä ei ole esiharjoiteltu.
+Valitut verkot onnistuivat vähintään kolmessa neljästä navigointitehtävästä ja
+kolmessa neljästä tavoittelutehtävästä. Valinta käyttää vain harjoitustehtäviä.
+Esiharjoittelussa fitness yhdistää navigoinnin ja tavoittelun pisteet painolla
+1:0,2, koska pelaajaan voi osua toistuvasti, mutta alueelle saapuminen palkitaan kerran.
+
+Erillisissä kokeissa pelin kahdeksan dronen joukko (siemen 42) sai kontaktin
+lähellä liikkuvaan aseettomaan pelaajaan 100 %:ssa tapauksista; vanha navigointimalli
+samalla lyhyellä näöllä 6,25 %:ssa. Alueelle saapuminen oli 83,3 % kuudessa
+navigointitehtävässä. Pelkän navigoinnin vanha malli ylsi 91,7 %:iin: tavoittelu
+parani voimakkaasti, mutta navigointi ei parantunut tässä erillisessä mittauksessa.
+[Mittausdata](docs/basic-start.json). Koe ei osoita vielä pärjäämistä ampujaa vastaan
+tai luotettavuutta kaikilla siemenillä.
 
 Tavallisen taistelun kahdeksan genomia evolvoituvat edelleen aallon päättyessä.
-Pelaajan sukupolvilaskuri alkaa yhdestä, eikä 30 offline-sukupolvea lasketa
+Pelaajan sukupolvilaskuri alkaa yhdestä, eikä esiharjoittelua lasketa
 näköpäivityksen aikatauluun. Tallenne sisältää myös innovaatiotunnisteet ja
 rakennemutaatioiden historian, jotta jatkoevoluutio ei käytä samoja tunnisteita
 eri rakenteille. Esiharjoittelun fitness ja vanhat lajien ennätykset nollataan.
@@ -145,16 +164,16 @@ tarjoaa vähemmän vaihtelua kuin laboratorio. Jatkuva yksilöiden korvaaminen
 Aloitusjoukon uudelleenharjoittelu:
 
 ```powershell
-& $godotExe --headless --path . --script tests/benchmark.gd -- --generations=30 --population=48 --seed=42 --output=res://build/pretraining.json --save-navigation=res://assets/navigation.json
+& $godotExe --headless --path . --script tests/train_basic.gd
 ```
 
-Komento korvaa mukana toimitetun aloitusjoukon. Tavallinen pelaaminen
+Komento käyttää `assets/navigation.json`-pohjaa ja korvaa `assets/basic.json`-aloitusjoukon.
+Tavallinen pelaaminen
 ei aja tätä harjoittelua uudelleen eikä odota sitä pelin käynnistyessä.
 
 [Aiemman aloitusjoukon vertailutulokset](docs/pretrained-start.md) koskevat vanhaa
-keskipistepisteytystä. Mukana tuleva aloitusjoukko on harjoiteltu uudelleen alueen
-reunaan etenemisen ja alueen tutkimisen pisteytyksellä.
-Uudella joukolla kahdeksan robotin saapumisprosentti kuudessa erillisessä tehtävässä
+keskipistepisteytystä. Myöhemmällä pelkän navigoinnin joukolla
+kahdeksan robotin saapumisprosentti kuudessa erillisessä tehtävässä
 on 91,7 % (satunnainen aloitus 8,3 %, siemen 42).
 [Uuden aloitusjoukon raakadata](docs/pretrained-boundary-start.json) ja
 [30 sukupolven harjoitusajo](docs/pretraining-boundary.json) ovat mukana.
@@ -166,15 +185,22 @@ kertaluonteisesta saapumisesta (+5) ja uusien 25 pikselin ruutujen tutkimisesta
 alueen sisällä (+0,5, enintään 8). Keskipisteen lähestyminen ei enää tuota
 etenemispisteitä. Paikallaan olo ja saman reitin toistaminen eivät toista palkkioita.
 Kun pelaaja näkyy, aluepalkkiot väistyvät pelaajan tavoittelun tieltä.
+Myös aluesignaalin suunta, etäisyys ja aktiivisuus nollataan verkon havainnoista
+näköyhteyden ajaksi, jotta vanha alueraportti ei kilpaile suoran havainnon kanssa.
+Signaali palautuu pelaajan kadotessa näköpiiristä. Tämä priorisoi havaintoja;
+liikettä tai hyökkäyssuuntaa ei määrätä erillisellä ohjauskoodilla.
+Alue-etenemisen pistekerroin on 0,08/pikseli (aiemmin 0,05), katto edelleen 30.
 Lisäksi mukana ovat pieni elossaolo-osa ja seinään juuttumisen rangaistus.
 Osuma vähentää 12 pistettä menetettyä kestävyyspistettä kohti, kuolema vielä 35.
 Kahden luodin tappo tuottaa siis yhteensä −59 pistettä. Pelaajalle tehty
-kontaktivahinko palkitaan erikseen. Seinäsensorit eivät käännä robotteja automaattisesti.
+kontaktivahinko palkitaan +16 pisteellä (aiemmin +8).
+Seinäsensorit eivät käännä robotteja automaattisesti.
 
-Stage B lisää pienen palkkion robotin omasta liikkeestä kohti sillä hetkellä
+Näkö lisää 0,35 pistettä/pikseli robotin omasta liikkeestä kohti sillä hetkellä
 näkyvää kohdetta sekä kontaktivahingosta. Kohteen oma liike ei kerrytä
 lähestymispalkkiota. Tämä on kokeellinen fitness-ohjaus, ei liikkeeseen
 lisätty jahtaamiskomento. Näköyhteyden puuttuessa lähestymispalkkiota ei anneta.
+Lähestymisosan kumulatiivinen arvo rajataan välille −60…+60.
 
 Oikean reunan kaavio näyttää arvioitujen sukupolvien parhaan ja keskimääräisen
 fitnessin. Saapumisprosentti (Stage A), kontaktiprosentti (Stage B) ja seinäaika
@@ -193,6 +219,7 @@ $godotExe = 'C:\Users\immuS\Documents\Godot\Godot_v4.7.2-stable_win64_console.ex
 & $godotExe --headless --path . --script tests/upgrade_tests.gd
 & $godotExe --headless --path . --script tests/network_execution.gd
 & $godotExe --headless --path . --script tests/pretrained_start.gd
+& $godotExe --headless --path . --script tests/basic_start.gd
 & $godotExe --headless --path . --script tests/scene_smoke.gd
 & $godotExe --headless --path . --script tests/benchmark.gd -- --generations=30 --seed=42
 & $godotExe --headless --path . --script tests/benchmark.gd -- --stage=vision --generations=20 --population=32 --seed=42 --output=res://reports/vision-benchmark.json

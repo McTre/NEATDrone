@@ -104,7 +104,7 @@ func run() -> void:
 	check(sim.robots[0].health == 2, "Walls must block bullets and melee")
 	sim.setup([still], Vector2(450, 150), Vector2(450, 450))
 	sim.step(Sim.STEP)
-	check(sim.player_health == 90 and sim.robots[0].parts.damage == 8, "Physical contact must damage player and reward robot")
+	check(sim.player_health == 90 and sim.robots[0].parts.damage == 16, "Physical contact must damage player and reward robot")
 	sim.step(Sim.STEP)
 	check(sim.player_health == 90, "Contact damage must respect cooldown")
 	sim.setup([still], Vector2(450, 150), Vector2(450, 150), true)

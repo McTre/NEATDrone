@@ -1,5 +1,14 @@
 # NEATDrone — Proof of Concept
 
+Basic behavior update: combat now starts with 120-pixel, wall-occluded player
+vision and a pretrained population for both alert navigation and pursuit.
+The first vision upgrade expands range to 300 pixels without adding inputs or
+changing distance normalization. Projectile perception remains the next upgrade.
+Direct sight temporarily suppresses the stale area report in network observations;
+the area report returns when sight is lost. All movement still comes from NEAT.
+Navigation progress weight is now 0.08, visual pursuit 0.35 (capped at ±60),
+and player contact rewards 16. Search, injury and death terms remain in place.
+
 Implementation update (2026-09-10): Stage C now exposes the nearest visible player
 bullet's direction, normalized distance, velocity and presence (six inputs; 19 total).
 Range is 300 pixels and walls occlude bullets. P queues this upgrade at a generation

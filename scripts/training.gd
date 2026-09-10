@@ -56,7 +56,7 @@ static func setup_vision(sim, genomes: Array, scenario: Array, blind: bool = fal
 	sim.player_path = scenario[3].duplicate()
 	sim.blind_test = blind
 
-static func evaluate(genomes: Array, cases: Array = TRAIN_CASES, blind: bool = false) -> Dictionary:
+static func evaluate(genomes: Array, cases: Array = TRAIN_CASES, blind: bool = false, vision_range: float = Sim.VISION_RANGE) -> Dictionary:
 	var totals: Array = []
 	totals.resize(genomes.size())
 	totals.fill(0.0)
@@ -71,6 +71,9 @@ static func evaluate(genomes: Array, cases: Array = TRAIN_CASES, blind: bool = f
 			setup_vision(sim, genomes, trial, blind)
 		else:
 			sim.setup(genomes, trial[1], trial[0], true)
+			sim.blind_test = true # Navigation tasks have no player target.
+			sim.player = Vector2(-1000, -1000)
+		sim.vision_range = vision_range
 		for tick in range(roundi(Sim.EPISODE_SECONDS / Sim.STEP)):
 			sim.step(Sim.STEP)
 		var scores = sim.scores()

@@ -102,7 +102,7 @@ func advance(delta: float) -> void:
 func update_labels() -> void:
 	var thoughts = [
 		"Interesting. You are easier to locate than to catch.",
-		"I wonder what my units will notice when I give them eyes.",
+		"I wonder what my units will notice when they see a little further.",
 		"I would like to study you longer. But I need this room empty.",
 	]
 	if projectile:

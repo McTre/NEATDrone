@@ -11,7 +11,7 @@ func run() -> void:
 	scene.paused = true
 	assert(scene.sim.robots.size() == 8)
 	assert(scene.evolution.pretrained_generations > 0)
-	assert(not scene.evolution.vision_enabled)
+	assert(scene.evolution.vision_enabled and not scene.evolution.long_vision_enabled)
 	# Exercise a complete lab generation, combat restart and debug rendering.
 	scene.laboratory = true
 	scene.reset_population()

@@ -83,6 +83,7 @@ var species_records: Array = []
 var champion = null
 var last_best = 0.0
 var last_average = 0.0
+var long_vision_enabled = false
 var vision_enabled = false
 var projectiles_enabled = false
 var pretrained_generations = 0
@@ -97,6 +98,7 @@ func training_copy():
 	copy.rng.state = rng.state
 	copy.generation = generation
 	copy.vision_enabled = vision_enabled
+	copy.long_vision_enabled = long_vision_enabled
 	copy.projectiles_enabled = projectiles_enabled
 	copy.pretrained_generations = pretrained_generations
 	copy.reset_evaluation()
@@ -113,18 +115,19 @@ func reset_evaluation() -> void:
 	species_serial = 0
 	assign_species()
 
-func navigation_snapshot() -> Dictionary:
-	assert(not vision_enabled)
+func navigation_snapshot(basic: bool = false) -> Dictionary:
+	assert(not vision_enabled or basic)
+	assert(not basic or (vision_enabled and not projectiles_enabled))
 	var genomes: Array = []
 	for genome in population:
 		genomes.append({"nodes": genome.nodes.duplicate(), "genes": genome.genes.duplicate(true),
 			"input_ids": genome.input_ids.duplicate()})
-	return {"format": 1, "stage": "navigation", "trained_generations": generation - 1,
+	return {"format": 1, "stage": "basic" if basic else "navigation", "trained_generations": generation - 1,
 		"genomes": genomes, "innovations": innovations.duplicate(), "splits": splits.duplicate(),
 		"next_node": next_node, "next_innovation": next_innovation}
 
 func load_navigation(data: Dictionary) -> bool:
-	if data.get("format") != 1 or data.get("stage") != "navigation" or data.get("genomes", []).is_empty():
+	if data.get("format") != 1 or data.get("stage") not in ["navigation", "basic"] or data.get("genomes", []).is_empty():
 		return false
 	var source: Array = data.genomes
 	var candidates: Array = range(source.size())
@@ -137,7 +140,7 @@ func load_navigation(data: Dictionary) -> bool:
 	var restored: Array = []
 	for i in range(population_size):
 		var record: Dictionary = source[candidates[i % candidates.size()]]
-		if record.get("input_ids", []).size() != INPUT_COUNT:
+		if record.get("input_ids", []).size() != (13 if data.stage == "basic" else INPUT_COUNT):
 			return false
 		var genome = Genome.new()
 		for id in record.nodes:
@@ -166,7 +169,8 @@ func load_navigation(data: Dictionary) -> bool:
 	champion = null
 	last_best = 0.0
 	last_average = 0.0
-	vision_enabled = false
+	vision_enabled = data.stage == "basic"
+	long_vision_enabled = false
 	projectiles_enabled = false
 	species_records.clear()
 	species_serial = 0
@@ -175,7 +179,11 @@ func load_navigation(data: Dictionary) -> bool:
 
 func unlock_vision() -> void:
 	if vision_enabled:
+		if not long_vision_enabled:
+			long_vision_enabled = true
+			reset_evaluation()
 		return
+	long_vision_enabled = true
 	vision_enabled = true
 	add_sensor_inputs(4)
 

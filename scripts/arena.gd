@@ -75,9 +75,12 @@ func reset_population() -> void:
 	simulation_debt = 0.0
 	evolution = Neat.new(seed_value, population_size if laboratory else combat_enemies)
 	if not laboratory and pretrained_movement:
-		var data = JSON.parse_string(FileAccess.get_file_as_string("res://assets/navigation.json"))
+		var data = JSON.parse_string(FileAccess.get_file_as_string("res://assets/basic.json"))
 		if not data is Dictionary or not evolution.load_navigation(data):
-			push_warning("Navigation starter could not be loaded; using a fresh population")
+			push_warning("Basic behavior starter could not be loaded; using a fresh population")
+	if not laboratory and not evolution.vision_enabled:
+		evolution.unlock_vision()
+		evolution.long_vision_enabled = false
 	if vision_generation == 1:
 		evolution.unlock_vision()
 	if projectile_generation == 1:
@@ -103,7 +106,7 @@ func begin_wave() -> void:
 		if evolution.projectiles_enabled:
 			Training.setup_fire(sim, evolution.population, Training.FIRE_CASES[trial])
 			banner = "Gunfire lab: player beside alert area. Bullets shown for selected robot. C: combat test."
-		elif evolution.vision_enabled:
+		elif evolution.long_vision_enabled:
 			Training.setup_vision(sim, evolution.population, Training.VISION_CASES[trial])
 			banner = "Vision lab: moving target, independent contact scores. C: try this population in combat."
 		else:
@@ -119,13 +122,15 @@ func begin_wave() -> void:
 		sim.setup(active, Vector2(450, 150))
 		banner = "Enter the cyan circle to trigger a facility alert. V: request vision at next generation."
 		if evolution.pretrained_generations > 0:
-			banner = "%d robots with pretrained navigation. Enter the alert circle; vision is learned during this run." % count
+			banner = "%d robots with pretrained search and pursuit. Short-range vision online; V: extend range." % count
 		if deployment:
 			banner = "Trained population test — evolution frozen. C: return to laboratory."
-		elif evolution.vision_enabled:
+		elif evolution.long_vision_enabled:
 			banner = "Vision online. P: request projectile sensing at the next generation."
 		if evolution.projectiles_enabled and not deployment:
 			banner = "Projectile vision online: visible bullet direction, distance and velocity. No automatic dodge."
+
+	sim.vision_range = Sim.VISION_RANGE if evolution.long_vision_enabled else 120.0
 
 func finish_wave() -> void:
 	if is_instance_valid(upgrade_screen):
@@ -158,12 +163,12 @@ func finish_wave() -> void:
 				last_metrics.arrival_rate, last_metrics.wall_seconds, last_metrics.progress_px,
 				evolution.species_records.size(), last_metrics.contact_rate, last_metrics.contacts,
 				last_metrics.hits, last_metrics.survival_seconds, last_metrics.survival_rate])
-		if not evolution.vision_enabled and (vision_requested or (vision_generation > 0 and evolution.generation >= vision_generation)):
+		if not evolution.long_vision_enabled and (vision_requested or (vision_generation > 0 and evolution.generation >= vision_generation)):
 			evolution.unlock_vision()
 			upgraded = true
 			vision_requested = false
 			history.clear()
-		if not evolution.projectiles_enabled and (projectile_requested or (projectile_generation > 0 and evolution.vision_enabled and evolution.generation >= projectile_generation)):
+		if not evolution.projectiles_enabled and (projectile_requested or (projectile_generation > 0 and evolution.long_vision_enabled and evolution.generation >= projectile_generation)):
 			evolution.unlock_projectiles()
 			upgraded = true
 			projectile_requested = false
@@ -201,7 +206,7 @@ func finish_upgrade() -> void:
 	begin_wave()
 
 func stage_name() -> String:
-	return "projectiles" if evolution.projectiles_enabled else ("vision" if evolution.vision_enabled else "navigation")
+	return "projectiles" if evolution.projectiles_enabled else ("vision" if evolution.long_vision_enabled else ("short_vision" if evolution.vision_enabled else "navigation"))
 
 func _process(delta: float) -> void:
 	var now = Time.get_ticks_usec()
@@ -261,7 +266,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			speed = 8 if laboratory else 1
 			reset_population() # Never mix different evaluation objectives.
 		KEY_V:
-			if not evolution.vision_enabled and not deployment:
+			if not evolution.long_vision_enabled and not deployment:
 				vision_requested = true
 				banner = "Vision upgrade queued for the next generation. Current trials will finish first."
 		KEY_P:
@@ -299,7 +304,7 @@ func save_champion(path: String = "user://champion.json") -> void:
 	var json = JSON.stringify({"generation": evolution.generation - 1,
 		"seed": seed_value, "fitness": genome.fitness, "nodes": genome.nodes,
 		"genes": genome.genes, "inputs": genome.input_ids.size(),
-		"input_ids": genome.input_ids, "vision": evolution.vision_enabled,
+		"input_ids": genome.input_ids, "vision": evolution.vision_enabled, "vision_range": sim.vision_range,
 		"projectiles": evolution.projectiles_enabled,
 		"upgrade_training": upgrade_training_reports}, "\t")
 	if OS.has_feature("web"):
@@ -342,7 +347,7 @@ func _draw() -> void:
 	draw_rect(Rect2(0, 0, 1280, 800), Color("080e16"))
 	label_at(Vector2(28, 39), "NEAT / DRONE", 27, CYAN)
 	label_at(Vector2(28, 64), "EVOLUTION OBSERVATORY / " + stage_name().to_upper(), 12, MUTED)
-	label_at(Vector2(570, 38), "PROJECTILE VISION" if evolution.projectiles_enabled else ("VISUAL PURSUIT" if evolution.vision_enabled else "AREA SEARCH"), 18)
+	label_at(Vector2(570, 38), "PROJECTILE VISION" if evolution.projectiles_enabled else ("VISUAL PURSUIT" if evolution.long_vision_enabled else ("SHORT SIGHT / 120 PX" if evolution.vision_enabled else "AREA SEARCH")), 18)
 	label_at(Vector2(570, 61), "%d observations / 2 outputs / learned movement" % evolution.population[0].input_ids.size(), 13, MUTED)
 	draw_rect(Rect2(1044, 22, 188, 40), Color("132d30"))
 	label_at(Vector2(1058, 48), "POPULATION TEST" if deployment else ("LABORATORY" if laboratory else "LIVE COMBAT"), 16, CYAN)
@@ -391,8 +396,8 @@ func _draw() -> void:
 					draw_line(observed_bullet.position, observed_bullet.position + observed_bullet.velocity * 0.05, AMBER, 2, true)
 				if sim.vision_enabled:
 					for segment in range(96):
-						var a = pos + Vector2.from_angle(segment * TAU / 96) * Sim.VISION_RANGE
-						var b = pos + Vector2.from_angle((segment + 1) * TAU / 96) * Sim.VISION_RANGE
+						var a = pos + Vector2.from_angle(segment * TAU / 96) * sim.vision_range
+						var b = pos + Vector2.from_angle((segment + 1) * TAU / 96) * sim.vision_range
 						if Rect2(Vector2.ZERO, Sim.SIZE).has_point(a) and Rect2(Vector2.ZERO, Sim.SIZE).has_point(b):
 							draw_line(a, b, Color(CYAN, 0.12), 1, true)
 					if sim.sees_player(robot):
