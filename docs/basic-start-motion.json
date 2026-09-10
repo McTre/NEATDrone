@@ -1,0 +1,43 @@
+{
+	"navigation": {
+		"arrival_rate": 0.791666666666667,
+		"contact_rate": 0.0,
+		"contacts": 0.0,
+		"fitness": 34.8350480906169,
+		"hits": 0.0,
+		"progress_px": 343.552684466044,
+		"search_reward": 3.53125,
+		"survival_rate": 1.0,
+		"survival_seconds": 16.0000000000004,
+		"visible_seconds": 0.0,
+		"wall_seconds": 0.709375000000009
+	},
+	"new_attack": {
+		"arrival_rate": 1.0,
+		"contact_rate": 1.0,
+		"contacts": 30.5625,
+		"fitness": 543.768428705173,
+		"hits": 0.0,
+		"progress_px": 0.0,
+		"search_reward": 0.109375,
+		"survival_rate": 1.0,
+		"survival_seconds": 16.0000000000004,
+		"visible_seconds": 15.6333333333337,
+		"wall_seconds": 0.0015625
+	},
+	"old_attack": {
+		"arrival_rate": 1.0,
+		"contact_rate": 0.15625,
+		"contacts": 0.21875,
+		"fitness": 0.559344381888713,
+		"hits": 0.0,
+		"progress_px": 0.0,
+		"search_reward": 4.703125,
+		"survival_rate": 1.0,
+		"survival_seconds": 16.0000000000004,
+		"visible_seconds": 5.41614583333333,
+		"wall_seconds": 0.0270833333333333
+	},
+	"robots": 8,
+	"seed": 42
+}

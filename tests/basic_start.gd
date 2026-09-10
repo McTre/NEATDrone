@@ -34,6 +34,7 @@ func run() -> void:
 	var before = Training.evaluate(old.population, Basic.HOLDOUT, false, 120).metrics
 	var after = Training.evaluate(neat.population, Basic.HOLDOUT, false, 120).metrics
 	var navigation = Training.evaluate(neat.population, Training.HOLDOUT_CASES).metrics
+	print("STARTER CHECK: contact=", after.contact_rate, " arrival=", navigation.arrival_rate)
 	assert(after.contact_rate > before.contact_rate, "Starter must improve held-out pursuit")
 	assert(after.contact_rate >= 0.75, "Starter must reliably reach a nearby unarmed target")
 	assert(navigation.arrival_rate >= 0.75, "Starter must retain useful navigation")

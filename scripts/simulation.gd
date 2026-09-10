@@ -6,6 +6,8 @@ const SIZE = Vector2(900, 580)
 const ROBOT_RADIUS = 11.0
 const PLAYER_RADIUS = 12.0
 const ROBOT_SPEED = 115.0
+const ROBOT_TURN_SPEED = TAU * 1.5 # 540 degrees/second; half-turn takes 1/3 s.
+const ROBOT_ACCELERATION = 1200.0
 const PLAYER_SPEED = 225.0
 const SENSOR_RANGE = 110.0
 const ALERT_RADIUS = 65.0
@@ -80,6 +82,8 @@ func setup(genomes: Array, target: Vector2, spawn: Vector2 = Vector2(-1, -1), la
 				1: position = Vector2(SIZE.x - 25, lerpf(35, SIZE.y - 35, fraction))
 				2: position = Vector2(lerpf(35, SIZE.x - 35, fraction), 25)
 				3: position = Vector2(lerpf(35, SIZE.x - 35, fraction), SIZE.y - 25)
+		if not lab:
+			position = free_robot_spawn(position)
 		robots.append({"genome": genomes[i], "position": position, "velocity": Vector2.ZERO,
 			"heading": Vector2.RIGHT, "health": 2.0, "reached": false,
 			"start_distance": position.distance_to(alert), "wall_time": 0.0,
@@ -88,6 +92,47 @@ func setup(genomes: Array, target: Vector2, spawn: Vector2 = Vector2(-1, -1), la
 			"parts": {"survival": 0.0, "progress": 0.0, "arrival": 0.0,
 				"damage": 0.0, "wall": 0.0, "death": 0.0, "pursuit": 0.0,
 				"search": 0.0, "injury": 0.0}})
+
+func robot_space_free(point: Vector2, except_robot = null) -> bool:
+	for other in robots:
+		if other == except_robot or other.health <= 0:
+			continue
+		if point.distance_squared_to(other.position) < pow(ROBOT_RADIUS * 2, 2) - 0.0001:
+			return false
+	return true
+
+func free_robot_spawn(point: Vector2) -> Vector2:
+	if not blocked(point, ROBOT_RADIUS) and robot_space_free(point):
+		return point
+	for ring in range(1, 42):
+		for direction in range(32):
+			var candidate = point + Vector2.from_angle(direction * TAU / 32) * ring * ROBOT_RADIUS * 2
+			if not blocked(candidate, ROBOT_RADIUS) and robot_space_free(candidate):
+				return candidate
+	push_error("No free drone spawn found")
+	return point
+
+func steer_robot(robot: Dictionary, output: Vector2, delta: float) -> Vector2:
+	var velocity: Vector2 = robot.velocity.move_toward(output * ROBOT_SPEED, ROBOT_ACCELERATION * delta)
+	if velocity.length_squared() > 0.01:
+		var angle = robot.heading.angle_to(velocity)
+		robot.heading = robot.heading.rotated(clampf(angle, -ROBOT_TURN_SPEED * delta, ROBOT_TURN_SPEED * delta)).normalized()
+	return velocity * delta
+
+func move_robot(robot: Dictionary, displacement: Vector2) -> Vector2:
+	if lab:
+		return move_body(robot.position, displacement, ROBOT_RADIUS)
+	var point: Vector2 = robot.position
+	var slices = maxi(1, ceili(displacement.length() / (ROBOT_RADIUS * 0.5)))
+	var increment = displacement / slices
+	for slice in range(slices):
+		# Slide along free axes; never push another drone through walls.
+		for axis in range(2):
+			var candidate = point
+			candidate[axis] += increment[axis]
+			if not blocked(candidate, ROBOT_RADIUS) and robot_space_free(candidate, robot):
+				point = candidate
+	return point
 
 func perceived_projectile(robot: Dictionary):
 	if not projectiles_enabled or projectile_blind_test:
@@ -302,18 +347,18 @@ func step(delta: float, movement: Vector2 = Vector2.ZERO, aim_at: Vector2 = Vect
 		var output: Vector2 = robot.genome.activate(inputs)
 		var before: Vector2 = robot.position
 		var visible = vision_enabled and inputs[12] > 0.0
-		robot.position = move_body(before, output * ROBOT_SPEED * delta, ROBOT_RADIUS)
+		var displacement = steer_robot(robot, output, delta)
+		var wall_position = move_body(before, displacement, ROBOT_RADIUS)
+		robot.position = wall_position if lab else move_robot(robot, displacement)
 		robot.velocity = (robot.position - before) / delta
-		if output.length_squared() > 0.01:
-			robot.heading = output.normalized()
 		robot.parts.survival += delta * 0.08
 		robot.lifetime += delta
 		if visible:
 			robot.visible_time += delta
 			robot.parts.pursuit = clampf(robot.parts.pursuit + (before.distance_to(player) - robot.position.distance_to(player)) * 0.35, -60, 60)
 		score_navigation(robot, before, visible)
-		var requested_distance = output.length() * ROBOT_SPEED * delta
-		if requested_distance > 0.1 and before.distance_to(robot.position) < requested_distance * 0.35:
+		var requested_distance = displacement.length()
+		if requested_distance > 0.1 and before.distance_to(wall_position) < requested_distance * 0.35:
 			robot.wall_time += delta
 			robot.parts.wall -= delta * 2.0
 		robot.contact_timer = maxf(0, robot.contact_timer - delta)

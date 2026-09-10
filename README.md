@@ -23,6 +23,19 @@ näöllä ja esiharjoitellulla pelaajan tavoittelulla. Näkö laajenee 300 pikse
 sukupolven 6 alussa ja luotisensorit avautuvat sukupolvessa 10.
 Toisiaan ne eivät vielä havaitse. Pelaajan piilossa oleva sijainti ei välity liikkumisverkkoon.
 
+Dronejen liikkeessä on nyt kiihtyvyysraja (1200 px/s²), joten täydessä vauhdissa
+tehty suunnanvaihto vaatii ensin jarrutuksen. Rungon kääntyminen on rajattu
+540 asteeseen sekunnissa. Liikesuunta ja rungon suunta voivat hetkellisesti erota.
+Näkö on edelleen 360 astetta; eteenpäin rajattua näkökenttää ei vielä ole.
+Elävät dronet törmäävät taistelussa toisiinsa: niiden keskipisteiden väli on
+vähintään 22 pikseliä. Ne liukuvat vapaaseen suuntaan, eivät työnnä toisiaan seinistä
+läpi, eivätkä kuolleet dronet estä liikettä. Myös syntypaikat erotetaan toisistaan.
+Laboratoriossa ja päivitystaukojen harjoittelussa genomit ovat yhä itsenäisiä
+kokeita ja voivat olla samassa kohdassa. Kääntyminen ja kiihtyvyys toimivat niissäkin.
+Liikemuutoksen jälkeisessä erillisessä aloitusmallin kokeessa tavoittelun
+kontaktiprosentti säilyi 100 %:ssa ja alueelle saapuminen oli 79,2 %
+(aiemmin 83,3 %). [Liikemuutoksen mittausdata](docs/basic-start-motion.json).
+
 | Ohjaus | Toiminto |
 | --- | --- |
 | WASD / hiiri | Liiku / tähtää |
@@ -220,6 +233,7 @@ $godotExe = 'C:\Users\immuS\Documents\Godot\Godot_v4.7.2-stable_win64_console.ex
 & $godotExe --headless --path . --script tests/network_execution.gd
 & $godotExe --headless --path . --script tests/pretrained_start.gd
 & $godotExe --headless --path . --script tests/basic_start.gd
+& $godotExe --headless --path . --script tests/swarm_motion.gd
 & $godotExe --headless --path . --script tests/scene_smoke.gd
 & $godotExe --headless --path . --script tests/benchmark.gd -- --generations=30 --seed=42
 & $godotExe --headless --path . --script tests/benchmark.gd -- --stage=vision --generations=20 --population=32 --seed=42 --output=res://reports/vision-benchmark.json
