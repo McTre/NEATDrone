@@ -29,12 +29,12 @@ vielä havaitse. Niiden liike voi aluksi näyttää satunnaiselta.
 | V | Pyydä näköpäivitys seuraavan kokonaisen sukupolven rajalle |
 | C | Kokeile harjoittelupopulaatiota taistelussa / palaa laboratorioon; populaatio säilyy |
 | 1 / 2 / 3 | Simulaation nopeus 1× / 4× / 8× (koneen suorituskyvyn rajoissa) |
-| F1 | Seinäsensorit, hälytysvektori, näön kantama ja todellinen näköyhteys |
-| Tab | Valitse seuraava robotti tarkasteltavaksi |
+| H (tai F1 työpöydällä) | Seinäsensorit, hälytysvektori, näön kantama ja todellinen näköyhteys |
+| Q (tai Tab työpöydällä) | Valitse seuraava robotti tarkasteltavaksi |
 | N | Päätä taisteluaalto ja evolvoi seuraava sukupolvi; toimii myös kuoltua |
 | R | Aloita alusta samalla satunnaissiemenellä |
-| F9 | Aloita uudella siemenellä |
-| F5 | Vie viimeksi arvioitu mestarigenomi JSON-tiedostoksi |
+| G (tai F9 työpöydällä) | Aloita uudella siemenellä |
+| E (tai F5 työpöydällä) | Vie viimeksi arvioitu mestarigenomi JSON-tiedostoksi |
 
 F5 tarkoittaa pelin omaa näppäintä peli-ikkunan ollessa aktiivinen.
 Populaation koon, siemenen ja `Vision Generation` -asetuksen voi muuttaa
@@ -170,3 +170,52 @@ mittaaminen, kun pelaajan tavoittelua on kokeiltu riittävästi.
 
 Alkuperäinen visio: [masterplan](NEATDrone-masterplan.md).
 Kokeen rajaus: [POC-suunnitelma](NEATDrone-poc.md).
+
+## Selainversio / itch.io
+
+Valmis ladattava paketti on `build/NEATDrone-itch-web.zip`.
+Uudelleenrakennus PowerShellissä:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/build-web.ps1
+```
+
+Skripti hakee tarvittaessa virallisesta Godot 4.7.2 -vientipaketista vain
+selaimen tarvitseman Web-vientimallin. Koko vientipakettia ei tarvitse asentaa.
+Toisen asennuspolun voi antaa parametrilla `-Godot 'polku/godot.exe'`.
+
+itch.io-projektin asetukset:
+
+1. **Kind of project: HTML** (selainpeli).
+2. Lataa `NEATDrone-itch-web.zip` kohdassa **Uploads**.
+3. Valitse tiedostolle **This file will be played in the browser**.
+4. Upotuksen koko **1280 × 800** tai **960 × 600**, ja koko näytön painike päälle.
+5. Peli käyttää näppäimistöä ja hiirtä. Älä merkitse sitä mobiiliystävälliseksi.
+6. Tallenna ja kokeile ensin itch.io-sivun esikatselussa.
+
+ZIPin juuressa on `index.html` ja sen tarvitsemat JavaScript-, WebAssembly- ja
+pelidatatiedostot. Vienti käyttää yhtä säiettä, eikä SharedArrayBuffer-tukea tai
+cross-origin isolation -asetusta tarvitse kytkeä itch.iossa päälle.
+PWA ja service worker ovat pois. Projektin lähdekoodia, testejä, paikallisia
+raportteja tai muita ZIP-paketteja ei sisällytetä vientiin.
+
+Peli odottaa alussa: napsauta peliä ja paina **Space**. Käytä selaimessa
+kirjainpikanäppäimiä H, Q, G ja E, sillä funktionäppäimet voivat olla selaimen
+omia komentoja. E lataa mestarigenomin JSON-tiedoston koneellesi.
+Populaatio ei tallennu sivunpäivityksen yli. Nopeutettu harjoittelu voi olla
+selaimessa työpöytäversiota hitaampaa; 1/2/3 säätävät nopeutta.
+
+Paikallinen esikatselu (pidä palvelin käynnissä):
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/serve-web.ps1
+# Avaa selaimessa http://127.0.0.1:8765
+```
+
+Pelkkä `index.html`-tiedoston avaaminen levyltä ei riitä, vaan peli tarvitsee
+HTTP-palvelimen. `tools/test-web.ps1` testaa viennin paikallisesti Edgellä:
+käynnistyksen, ohjauksen, näköpäivityksen, genomin latauksen ja harjoittelutilan.
+Testi käyttää omaa selainprofiilia eikä käyttäjän tavallista Edge-profiilia.
+
+Viralliset ohjeet: [itch.io HTML5 -pelit](https://itch.io/docs/creators/html5)
+ja [Godotin Web-vienti](https://docs.godotengine.org/en/stable/tutorials/export/exporting_for_web.html).

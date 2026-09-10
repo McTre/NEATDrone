@@ -33,6 +33,9 @@ var wave = 1
 func _ready() -> void:
 	DisplayServer.window_set_title("NEATDrone | Learning Lab")
 	reset_population()
+	if OS.has_feature("web"):
+		paused = true
+		banner = "Click the game, then SPACE to start. WASD: move / mouse: aim / T: learning lab."
 
 func reset_population() -> void:
 	evolution = Neat.new(seed_value, population_size)
@@ -127,7 +130,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	match event.physical_keycode:
 		KEY_SPACE:
 			paused = not paused
-		KEY_F1:
+		KEY_F1, KEY_H:
 			sensors = not sensors
 		KEY_R:
 			reset_population()
@@ -157,11 +160,11 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			speed = 4
 		KEY_3:
 			speed = 8
-		KEY_TAB:
+		KEY_TAB, KEY_Q:
 			selected = (selected + 1) % sim.robots.size()
-		KEY_F5:
+		KEY_F5, KEY_E:
 			save_champion()
-		KEY_F9:
+		KEY_F9, KEY_G:
 			seed_value += 1
 			reset_population()
 
@@ -170,12 +173,17 @@ func save_champion(path: String = "user://champion.json") -> void:
 		banner = "Finish one generation before exporting a champion."
 		return
 	var genome = evolution.champion
+	var json = JSON.stringify({"generation": evolution.generation - 1,
+		"seed": seed_value, "fitness": genome.fitness, "nodes": genome.nodes,
+		"genes": genome.genes, "inputs": genome.input_ids.size(),
+		"input_ids": genome.input_ids, "vision": evolution.vision_enabled}, "\t")
+	if OS.has_feature("web"):
+		JavaScriptBridge.download_buffer(json.to_utf8_buffer(), "neatdrone-champion.json", "application/json")
+		banner = "Champion downloaded as neatdrone-champion.json."
+		return
 	var file = FileAccess.open(path, FileAccess.WRITE)
 	if file:
-		file.store_string(JSON.stringify({"generation": evolution.generation - 1,
-			"seed": seed_value, "fitness": genome.fitness, "nodes": genome.nodes,
-			"genes": genome.genes, "inputs": genome.input_ids.size(),
-			"input_ids": genome.input_ids, "vision": evolution.vision_enabled}, "\t"))
+		file.store_string(json)
 		banner = "Champion exported to: " + OS.get_user_data_dir()
 
 func label_at(position: Vector2, text: String, size: int = 16, color: Color = INK) -> void:
@@ -280,7 +288,7 @@ func _draw() -> void:
 
 	label_at(Vector2(28, 732), banner, 14, CYAN if sim.player_health > 0 else AMBER)
 	label_at(Vector2(28, 760), "WASD  move     LMB  shoot     RMB  melee     SPACE  pause     T  lab / combat (reset)     1 / 2 / 3  speed", 13, INK)
-	label_at(Vector2(28, 785), "V  queue vision     C  lab / trained combat     F1  sensors     TAB  bot     N  next     R  reset     F9  seed     F5  export", 13, MUTED)
+	label_at(Vector2(28, 785), "V  queue vision     C  lab / trained combat     H  sensors     Q  bot     N  next     R  reset     G  seed     E  export", 13, MUTED)
 
 func draw_chart(rect: Rect2) -> void:
 	draw_rect(rect, Color("0b151f"))
