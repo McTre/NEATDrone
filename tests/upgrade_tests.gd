@@ -37,7 +37,7 @@ func run() -> void:
 			await process_frame
 			await RenderingServer.frame_post_draw
 			root.get_texture().get_image().save_png("res://build/upgrade-screen.png")
-		screen.advance(10.0)
+		screen.advance(15.0)
 		assert(arena.upgrade_screen == null)
 		assert(arena.sim.elapsed == 0, "Next wave starts fresh without catch-up ticks")
 		assert(arena.sim.observations(arena.sim.robots[0]).size() == (19 if projectile else 13))

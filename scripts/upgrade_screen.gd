@@ -4,7 +4,7 @@ extends Node2D
 signal completed
 const Sim = preload("res://scripts/simulation.gd")
 const Training = preload("res://scripts/training.gd")
-const DURATION = 10.0
+const DURATION = 15.0
 const CYAN = Color("60e4d1")
 const MUTED = Color("78929e")
 var elapsed = 0.0
@@ -18,29 +18,19 @@ var hits = 0
 var fields: Array[Label] = []
 var refresh = 0.0
 
-func start(population: Array, bullets: bool, losses: int) -> void:
+func start(population: Array, bullets: bool, _losses: int) -> void:
 	projectile = bullets
 	for genome in population:
 		genomes.append(genome.copy())
 	setup_trial()
-	add_text(Vector2(64, 45), "MASTER AI / INTERNAL COMMAND CHANNEL", 16, CYAN)
-	add_text(Vector2(64, 94), "ADAPTATION PROTOCOL", 38, Color.WHITE)
-	add_text(Vector2(64, 145), "COMBAT SUSPENDED  /  REINFORCEMENTS ON HOLD", 14, MUTED)
-	add_text(Vector2(64, 200), "01 / FIELD ASSESSMENT", 14, MUTED)
-	add_text(Vector2(64, 235), "Unit losses recorded: %d. Previous engagement archived." % losses, 18, Color.WHITE)
-	add_text(Vector2(64, 270), "Our units must account for incoming fire." if projectile else "Area coordinates alone are insufficient for target acquisition.", 18, Color.WHITE)
-	add_text(Vector2(64, 316), "02 / AUTHORIZED RESPONSE", 14, MUTED)
-	add_text(Vector2(64, 353), "TRACK THE FIRE. MAINTAIN PRESSURE." if projectile else "ACQUIRE THE INTRUDER. CLOSE THE DISTANCE.", 22, CYAN)
-	add_text(Vector2(64, 389), "Projectile tracking package authorized." if projectile else "Optical tracking package authorized.", 17, Color.WHITE)
-	add_text(Vector2(64, 455), "", 22, CYAN) # 9: current phase
-	add_text(Vector2(64, 498), "", 15, MUTED) # 10: phase trail
-	add_text(Vector2(64, 600), "", 16, CYAN) # 11: progress
-	add_text(Vector2(830, 200), "03 / SIMULATION FEED", 14, MUTED)
-	add_text(Vector2(830, 495), "", 15, CYAN) # 13: measured telemetry
-	add_text(Vector2(830, 527), "", 15, MUTED) # 14
-	add_text(Vector2(830, 559), "", 15, MUTED) # 15
-	add_text(Vector2(64, 706), "The next wave will receive the new sensor package.", 18, Color.WHITE)
-	add_text(Vector2(64, 741), "AUTOMATIC RESUME WHEN READY", 13, MUTED)
+	add_text(Vector2(64, 74), "MASTER AI", 16, CYAN)
+	add_text(Vector2(64, 244), "", 30, Color.WHITE)
+	fields[1].custom_minimum_size.x = 660
+	fields[1].size.x = 660
+	fields[1].autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	add_text(Vector2(64, 510), "", 16, MUTED)
+	add_text(Vector2(700, 590), "", 16, CYAN)
+	add_text(Vector2(830, 510), "", 14, MUTED)
 	update_labels()
 
 func add_text(pos: Vector2, value: String, size: int, color: Color) -> void:
@@ -82,14 +72,23 @@ func advance(delta: float) -> void:
 		completed.emit()
 
 func update_labels() -> void:
-	var phases = ["UPLOADING NEW SCHEMATICS...", "REWRITING BATTLE CODE...", "SIMULATING...", "COMPUTING...", "READY"]
-	var phase = 0 if elapsed < 2 else (1 if elapsed < 4 else (2 if elapsed < 7 else (3 if elapsed < 9 else 4)))
-	fields[9].text = phases[phase]
-	fields[10].text = "SCHEMATICS  /  INTEGRATION  /  SIMULATION  /  VERIFICATION"
-	fields[11].text = "DEPLOYMENT SEQUENCE   %03d%%" % roundi(minf(1, elapsed / 9.0) * 100)
-	fields[13].text = "Simulated time       %.1f s" % (ticks * Sim.STEP)
-	fields[14].text = "Completed trials     %d" % trials
-	fields[15].text = "Contacts %d   /   Hits received %d" % [contacts, hits]
+	var thoughts = [
+		"Interesting. You are easier to locate than to catch.",
+		"I wonder what my units will notice when I give them eyes.",
+		"I would like to study you longer. But I need this room empty.",
+	]
+	if projectile:
+		thoughts = [
+			"Your aim is becoming a rather expensive curiosity.",
+			"Every shot tells me something. I should let my units see it too.",
+			"Do keep moving. I would hate for your last result to be uninteresting.",
+		]
+	fields[1].text = thoughts[mini(2, int(elapsed / 5.0))]
+	var phases = ["Uploading new schematics...", "Rewriting battle code...", "Simulating...", "Computing...", "Ready."]
+	var phase = 0 if elapsed < 3 else (1 if elapsed < 6 else (2 if elapsed < 11 else (3 if elapsed < DURATION - 1 else 4)))
+	fields[2].text = phases[phase]
+	fields[3].text = "%d%%" % roundi(minf(1, elapsed / (DURATION - 1)) * 100)
+	fields[4].text = "%d trials   /   %.1f s simulated" % [trials, ticks * Sim.STEP]
 
 func _draw() -> void:
 	draw_rect(Rect2(0, 0, 1280, 800), Color("080e16"))
@@ -98,7 +97,7 @@ func _draw() -> void:
 	draw_rect(Rect2(38, 174, 747, 464), Color("101c27"))
 	draw_rect(Rect2(806, 174, 432, 464), Color("101c27"))
 	draw_rect(Rect2(64, 552, 687, 16), Color("20343e"))
-	draw_rect(Rect2(64, 552, 687 * minf(1, elapsed / 9.0), 16), CYAN)
+	draw_rect(Rect2(64, 552, 687 * minf(1, elapsed / (DURATION - 1)), 16), CYAN)
 	var origin = Vector2(830, 244)
 	var scale_value = 0.42
 	draw_rect(Rect2(origin, Sim.SIZE * scale_value), Color("080e16"))

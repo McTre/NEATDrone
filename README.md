@@ -49,15 +49,17 @@ Automaattinen luotipäivitys edellyttää pelaajan näköä; P lisää tarvittae
 
 ## Oppimisen kokeileminen
 
-Näön ja luotinäön avautuessa aaltojen väliin tulee nyt noin 10 sekunnin
-**Master AI / Adaptation Protocol** -ruutu. Taistelu ja pelin ohjaus pysähtyvät.
-Pää-AI kertoo edellisen aallon tappiot, päivityksen tarkoituksen ja etenee
+Näön ja luotinäön avautuessa aaltojen väliin tulee nyt noin 15 sekunnin
+**Master AI** -ruutu. Taistelu ja pelin ohjaus pysähtyvät.
+Pää-AI:n lyhyt sisäinen pohdinta vaihtuu viiden sekunnin välein: pelaaja
+kiinnostaa sitä, mutta sen tavoitteena on päästä tästä eroon. Näön ja luotinäön
+päivityksillä on omat repliikkinsä. Pelkistetty ruutu etenee
 vaiheiden `Uploading new schematics`, `Rewriting battle code`, `Simulating`,
 `Computing` ja `Ready` kautta seuraavaan aaltoon. Palkki näyttää päivitysjakson
 etenemisen, ei oppimisen onnistumisprosenttia.
 
-Sivussa näkyvät oikea simulaatio, simuloitu aika, valmistuneet neljän sekunnin
-koejaksot, kontaktit ja saadut osumat. Tässä käyttöliittymäkokeilussa simulaatio
+Sivussa näkyvät oikea simulaatio, simuloitu aika ja valmistuneet neljän sekunnin
+koejaksot. Tässä käyttöliittymäkokeilussa simulaatio
 ajetaan populaation kopioilla: se **ei vielä harjoita tai evolvoi** pelin droneja.
 Laskentaa tehdään pienissä, noin 2,5 ms erissä, jotta selain pysyy sulavana.
 Valmiiksi asennettu kyky ei toista ruutua tavallisten aaltojen välissä.
