@@ -15,8 +15,21 @@ PowerShell tämän projektin kansiossa:
 & 'C:\Users\immuS\Documents\Godot\Godot_v4.7.2-stable_win64.exe' --path . --editor
 ```
 
-Pelissä on kiinteä areena, pelaaja ja **8 robottia**. Taisteluaalloilla ei ole
-aikarajaa: seuraava aalto alkaa automaattisesti vasta kaikkien dronejen tuhouduttua.
+Pelissä on kiinteä areena, pelaaja ja aallon alussa **8 robottia**. Lisäksi
+**15 sekunnin välein syntyy yksi drone** saman aallon sisääntulosta.
+Taisteluaalloilla ei ole aikarajaa: seuraava aalto alkaa automaattisesti vasta,
+kun kentällä ei ole yhtään elossa olevaa dronea. Pelaajan sijainti säilyy
+aaltojen välillä, myös kyvyn päivitysruudun yli.
+
+**60 sekunnin välein** elossa olevat dronet saavat OTA-päivityksen: NEAT arvioi
+edellisen jakson pisteet ja luo uudet verkot. Myös jakson aikana kuolleiden
+pisteet huomioidaan kerran. Sijainti, HP ja liike säilyvät, mutta verkon
+arviointipisteet alkavat alusta. Dronen yllä näkyy `Updated` kahden sekunnin ajan.
+Paikallaanolon rangaistus pääsee näin vaikuttamaan valintaan ilman dronen kuolemaa.
+Molemmat ajastimet mittaavat aktiivista peliaikaa ja jatkuvat aaltojen yli;
+tauko ja kyvyn päivitysruutu pysäyttävät ne. Laboratorion jäädytetyssä
+testikäytössä OTA ei muuta verkkoja.
+
 N säilyy manuaalisena testaus-/jatkonäppäimenä. Laboratorion 16 sekunnin
 tehtävärajat ja päivitysruudun 15 sekunnin tauko säilyvät.
 Pelaajan luodit kulkevat enintään **250 pikseliä** laukaisupaikasta. Dronella on
@@ -264,6 +277,7 @@ $godotExe = 'C:\Users\immuS\Documents\Godot\Godot_v4.7.2-stable_win64_console.ex
 & $godotExe --headless --path . --script tests/room_layout.gd
 & $godotExe --headless --path . --script tests/combat_rules.gd
 & $godotExe --headless --path . --script tests/idle_penalty.gd
+& $godotExe --headless --path . --script tests/ota_reinforcements.gd
 & $godotExe --headless --path . --script tests/scene_smoke.gd
 & $godotExe --headless --path . --script tests/benchmark.gd -- --generations=30 --seed=42
 & $godotExe --headless --path . --script tests/benchmark.gd -- --stage=vision --generations=20 --population=32 --seed=42 --output=res://reports/vision-benchmark.json

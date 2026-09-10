@@ -147,6 +147,39 @@ func enter_arena(robot: Dictionary, delta: float) -> void:
 		robot.incoming = false
 		robot.velocity = Vector2.ZERO
 
+func add_reinforcement(genome) -> Dictionary:
+	# Reuse the ordinary robot schema without resetting this arena.
+	var factory = get_script().new()
+	factory.setup([genome], alert, Vector2(100, 100), true)
+	var robot: Dictionary = factory.robots[0]
+	var direction: Vector2 = RoomLayout.DIRECTIONS[entry_index]
+	var point: Vector2 = RoomLayout.ENTRIES[entry_index] - direction * 35
+	while not robot_space_free(point):
+		point -= direction * 28
+	robot.position = point
+	robot.heading = direction
+	robot.incoming = true
+	robot.entry_distance = 60.0
+	robot.start_distance = point.distance_to(alert)
+	robot.idle_anchor = point
+	robots.append(robot)
+	initial_population += 1
+	return robot
+
+func reset_robot_evaluation(robot: Dictionary) -> void:
+	for key in robot.parts:
+		robot.parts[key] = 0.0
+	robot.lifetime = 0.0
+	robot.hits = 0
+	robot.contacts = 0
+	robot.visible_time = 0.0
+	robot.wall_time = 0.0
+	robot.reached = false
+	robot.best_edge = -1.0
+	robot.search_cells.clear()
+	robot.idle_anchor = robot.position
+	robot.idle_seconds = 0.0
+
 func robot_space_free(point: Vector2, except_robot = null) -> bool:
 	for other in robots:
 		if other == except_robot or other.health <= 0:
@@ -399,6 +432,7 @@ func step(delta: float, movement: Vector2 = Vector2.ZERO, aim_at: Vector2 = Vect
 	for robot in robots:
 		if robot.health <= 0:
 			continue
+		robot.updated_seconds = maxf(0, robot.get("updated_seconds", 0.0) - delta)
 		if robot.get("incoming", false):
 			enter_arena(robot, delta)
 			continue

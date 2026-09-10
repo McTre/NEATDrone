@@ -36,6 +36,11 @@ var selected = 0
 var banner = "Enter the cyan circle to trigger a facility alert."
 var report_path = "user://latest_run.csv"
 var wave = 1
+var combat_clock = 0.0
+var next_ota = 60.0
+var next_reinforcement = 15.0
+var keep_player_position = false
+var carried_player_position = Vector2.ZERO
 var simulation_debt = 0.0
 var observed_speed = 0.0
 var frame_ms = 16.7
@@ -68,6 +73,10 @@ func _ready() -> void:
 		banner = "Click the game, then SPACE to start. WASD: move / mouse: aim / T: learning lab."
 
 func reset_population() -> void:
+	combat_clock = 0.0
+	next_ota = 60.0
+	next_reinforcement = 15.0
+	keep_player_position = false
 	upgrade_training_reports.clear()
 	if is_instance_valid(upgrade_screen):
 		upgrade_screen.queue_free()
@@ -120,6 +129,11 @@ func begin_wave() -> void:
 		for i in range(count):
 			active.append(evolution.population[(offset + i) % evolution.population.size()])
 		sim.setup_combat(active, seed_value, wave)
+		for i in range(sim.robots.size()):
+			sim.robots[i].evaluation_slot = i
+		if keep_player_position:
+			sim.player = carried_player_position
+			keep_player_position = false
 		banner = "Enter the cyan circle to trigger a facility alert. V: request vision at next generation."
 		if evolution.pretrained_generations > 0:
 			banner = "%d robots with pretrained search and pursuit. Short-range vision online; V: extend range." % count
@@ -135,11 +149,17 @@ func begin_wave() -> void:
 func finish_wave() -> void:
 	if is_instance_valid(upgrade_screen):
 		return
+	if not laboratory:
+		carried_player_position = sim.player
+		keep_player_position = true
 	if deployment:
 		wave += 1
 		begin_wave()
 		return
-	var scores = sim.scores()
+	var scores = sim.scores() if laboratory else combat_scores()
+	totals.resize(evolution.population.size())
+	if not laboratory:
+		totals.fill(0.0)
 	var divisor = Training.TRAIN_CASES.size() if laboratory else 1
 	for i in range(scores.size()):
 		totals[i] += scores[i] / divisor
@@ -151,6 +171,8 @@ func finish_wave() -> void:
 	var upgraded = false
 	if trial >= divisor:
 		var evaluated_generation = evolution.generation
+		if not laboratory:
+			evolution.population_size = combat_enemies
 		evolution.evolve(totals)
 		history.append({"best": evolution.last_best, "mean": evolution.last_average})
 		if history.size() > 60:
@@ -229,6 +251,8 @@ func _process(delta: float) -> void:
 			sim.step(Sim.STEP, movement, get_global_mouse_position() - ORIGIN,
 				Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT), Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT))
 			measured_simulation += Sim.STEP
+			if not laboratory:
+				combat_clock += Sim.STEP
 			if sim.player_health <= 0 and not laboratory:
 				banner = "SIGNAL LOST — N: evaluate wave and continue / R: fresh population"
 				break
@@ -236,6 +260,8 @@ func _process(delta: float) -> void:
 				finish_wave()
 				if is_instance_valid(upgrade_screen):
 					break
+			elif not laboratory:
+				advance_combat_events(0.0)
 			if Time.get_ticks_usec() - now >= FRAME_SIMULATION_BUDGET_US:
 				break
 	else:
@@ -248,6 +274,75 @@ func _process(delta: float) -> void:
 
 func wave_complete() -> bool:
 	return sim.alive_count() == 0 or (laboratory and sim.elapsed >= Sim.EPISODE_SECONDS)
+
+func combat_scores() -> Array:
+	var scores: Array = []
+	var counts: Array = []
+	scores.resize(evolution.population.size())
+	counts.resize(scores.size())
+	scores.fill(0.0)
+	counts.fill(0)
+	for robot in sim.robots:
+		var slot: int = robot.get("evaluation_slot", -1)
+		if slot >= 0 and slot < scores.size():
+			scores[slot] += sim.fitness(robot)
+			counts[slot] += 1
+	var total = 0.0
+	var evaluated = 0
+	for i in range(scores.size()):
+		if counts[i] > 0:
+			scores[i] /= counts[i]
+			total += scores[i]
+			evaluated += 1
+	for i in range(scores.size()):
+		if counts[i] == 0:
+			scores[i] = total / maxi(1, evaluated)
+	return scores
+
+func apply_ota() -> void:
+	if deployment or sim.alive_count() == 0:
+		return
+	var scores = combat_scores() # Includes drones killed since the previous OTA.
+	evolution.population_size = maxi(4, sim.alive_count())
+	var generation = evolution.generation
+	evolution.evolve(scores)
+	evolution.generation = generation # Hardware unlocks still follow completed waves.
+	var index = 0
+	for robot in sim.robots:
+		robot.evaluation_slot = -1
+		if robot.health <= 0:
+			continue
+		robot.genome = evolution.population[index]
+		robot.evaluation_slot = index
+		index += 1
+		sim.reset_robot_evaluation(robot)
+		robot.updated_seconds = 2.0
+	totals.resize(evolution.population.size())
+	totals.fill(0.0)
+	next_text_update = 0
+
+func spawn_reinforcement() -> void:
+	var source = evolution.population[evolution.rng.randi_range(0, evolution.population.size() - 1)]
+	var genome = source.copy()
+	var slot = 0
+	if not deployment:
+		slot = evolution.population.size()
+		evolution.population.append(genome)
+		evolution.population_size = evolution.population.size()
+		evolution.assign_species()
+	var robot = sim.add_reinforcement(genome)
+	robot.evaluation_slot = slot
+
+func advance_combat_events(delta: float) -> void:
+	combat_clock += delta
+	if laboratory or sim.alive_count() == 0:
+		return
+	if combat_clock + 0.000001 >= next_ota:
+		next_ota += 60.0
+		apply_ota()
+	if combat_clock + 0.000001 >= next_reinforcement:
+		next_reinforcement += 15.0
+		spawn_reinforcement()
 
 func _unhandled_key_input(event: InputEvent) -> void:
 	if is_instance_valid(upgrade_screen):
@@ -397,6 +492,8 @@ func _draw() -> void:
 		draw_set_transform(ORIGIN)
 		if robot.health < Sim.ROBOT_HEALTH:
 			draw_line(pos + Vector2(-6, 16), pos + Vector2(-6 + 12 * robot.health / Sim.ROBOT_HEALTH, 16), AMBER, 2)
+		if robot.get("updated_seconds", 0.0) > 0:
+			label_at(pos + Vector2(-24, -24), "Updated", 12, CYAN)
 		if selected == i:
 			draw_arc(pos, 17, 0, TAU, 28, Color(INK, 0.6), 1, true)
 			if sensors:
