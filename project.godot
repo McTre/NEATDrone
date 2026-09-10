@@ -1,0 +1,19 @@
+; NEATDrone / Godot 4
+config_version=5
+
+[application]
+config/name="NEATDrone — Learning Lab"
+run/main_scene="res://scenes/arena.tscn"
+
+[display]
+window/size/viewport_width=1280
+window/size/viewport_height=800
+window/stretch/mode="canvas_items"
+
+[rendering]
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+environment/defaults/default_clear_color=Color(0.025, 0.04, 0.06, 1)
+
+[physics]
+common/physics_ticks_per_second=60

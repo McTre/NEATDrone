@@ -1,0 +1,8 @@
+.godot/
+build/
+reports/
+*.tmp
+*.log
+.env
+.env.*
+*token*.txt
