@@ -108,6 +108,8 @@ try {
     Wait-Page 200
     Send-CDP 'Input.dispatchMouseEvent' @{type='mouseReleased';x=650;y=350;button='left';clickCount=1} | Out-Null
     Press-Key 'v' 'KeyV' 86
+    $roomShot = Send-CDP 'Page.captureScreenshot' @{format='png'}
+    [IO.File]::WriteAllBytes((Join-Path $buildRoot 'web-rooms.png'), [Convert]::FromBase64String($roomShot.data))
     Press-Key 'n' 'KeyN' 78
     Wait-Page 15500
     Press-Key 'p' 'KeyP' 80

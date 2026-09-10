@@ -19,6 +19,10 @@ const BULLET_SPEED = 700.0
 const DEATH_PENALTY = -35.0
 const HIT_PENALTY = -12.0
 const NAVIGATION_WEIGHT = 0.08
+const RoomLayout = preload("res://scripts/room_layout.gd")
+var room_layout = false
+var entry_index = 0
+var room_index = 0
 
 var walls: Array[Rect2] = [
 	Rect2(260, 100, 28, 145), Rect2(612, 335, 28, 145),
@@ -50,6 +54,8 @@ var firing_trial = false
 var fire_interval = 0.28
 
 func setup(genomes: Array, target: Vector2, spawn: Vector2 = Vector2(-1, -1), laboratory: bool = false) -> void:
+	room_layout = false
+	walls.assign([Rect2(260, 100, 28, 145), Rect2(612, 335, 28, 145), Rect2(410, 265, 80, 30)])
 	robots.clear()
 	bullets.clear()
 	alert = target
@@ -92,6 +98,38 @@ func setup(genomes: Array, target: Vector2, spawn: Vector2 = Vector2(-1, -1), la
 			"parts": {"survival": 0.0, "progress": 0.0, "arrival": 0.0,
 				"damage": 0.0, "wall": 0.0, "death": 0.0, "pursuit": 0.0,
 				"search": 0.0, "injury": 0.0}})
+
+func setup_combat(genomes: Array, seed_value: int, wave: int) -> void:
+	var layout_rng = RandomNumberGenerator.new()
+	layout_rng.seed = seed_value * 1000003 + wave * 7919
+	var entrance = layout_rng.randi_range(0, 3)
+	var room = layout_rng.randi_range(0, 3)
+	setup(genomes, RoomLayout.ALERTS[room])
+	room_layout = true
+	entry_index = entrance
+	room_index = room
+	walls.assign(RoomLayout.WALLS)
+	player = Vector2(450, 290)
+	var direction: Vector2 = RoomLayout.DIRECTIONS[entry_index]
+	var doorway: Vector2 = RoomLayout.ENTRIES[entry_index]
+	for i in range(robots.size()):
+		var robot = robots[i]
+		robot.position = doorway - direction * (35.0 + (i / 2) * 32.0) + direction.orthogonal() * (-14.0 if i % 2 == 0 else 14.0)
+		robot.heading = direction
+		robot.incoming = true
+		robot.entry_distance = 44.0 + (ceili(robots.size() / 2.0) - 1 - i / 2) * 32.0
+		robot.start_distance = robot.position.distance_to(alert)
+
+func enter_arena(robot: Dictionary, delta: float) -> void:
+	var direction: Vector2 = RoomLayout.DIRECTIONS[entry_index]
+	var candidate: Vector2 = robot.position + direction * ROBOT_SPEED * delta
+	if robot_space_free(candidate, robot):
+		robot.position = candidate
+		robot.velocity = direction * ROBOT_SPEED
+	# The hidden entry corridor uses fixed ingress; NEAT takes over inside.
+	if (robot.position - RoomLayout.ENTRIES[entry_index]).dot(direction) >= robot.entry_distance:
+		robot.incoming = false
+		robot.velocity = Vector2.ZERO
 
 func robot_space_free(point: Vector2, except_robot = null) -> bool:
 	for other in robots:
@@ -336,12 +374,17 @@ func step(delta: float, movement: Vector2 = Vector2.ZERO, aim_at: Vector2 = Vect
 			melee_cooldown = 0.55
 			melee_flash = 0.14
 			for robot in robots:
+				if robot.get("incoming", false) and not Rect2(Vector2.ZERO, SIZE).has_point(robot.position):
+					continue
 				var direction: Vector2 = robot.position - player
 				if direction.length() < 64 and direction.normalized().dot(aim) > 0.25:
 					if ray_distance(player, direction.normalized(), direction.length()) >= direction.length() - 0.01:
 						hurt_robot(robot, 2.0)
 	for robot in robots:
 		if robot.health <= 0:
+			continue
+		if robot.get("incoming", false):
+			enter_arena(robot, delta)
 			continue
 		var inputs = observations(robot)
 		var output: Vector2 = robot.genome.activate(inputs)

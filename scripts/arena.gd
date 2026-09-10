@@ -119,7 +119,7 @@ func begin_wave() -> void:
 		var offset = ((wave - 1) * count) % evolution.population.size() if deployment else 0
 		for i in range(count):
 			active.append(evolution.population[(offset + i) % evolution.population.size()])
-		sim.setup(active, Vector2(450, 150))
+		sim.setup_combat(active, seed_value, wave)
 		banner = "Enter the cyan circle to trigger a facility alert. V: request vision at next generation."
 		if evolution.pretrained_generations > 0:
 			banner = "%d robots with pretrained search and pursuit. Short-range vision online; V: extend range." % count
@@ -362,6 +362,11 @@ func _draw() -> void:
 	for y in range(0, 581, 30):
 		draw_line(Vector2(0, y), Vector2(Sim.SIZE.x, y), Color("14232d"))
 	draw_rect(Rect2(Vector2.ZERO, Sim.SIZE), Color("385463"), false, 2)
+	if sim.room_layout:
+		for i in range(Sim.RoomLayout.ENTRIES.size()):
+			var door: Vector2 = Sim.RoomLayout.ENTRIES[i]
+			var tangent: Vector2 = Sim.RoomLayout.DIRECTIONS[i].orthogonal() * 36
+			draw_line(door - tangent, door + tangent, CYAN if i == sim.entry_index else Color("29404e"), 5)
 	var alert_color = CYAN if sim.alert_active else Color("436860")
 	draw_circle(sim.alert, Sim.ALERT_RADIUS, Color(alert_color, 0.07))
 	draw_arc(sim.alert, Sim.ALERT_RADIUS, 0, TAU, 64, alert_color, 1.5, true)
@@ -377,6 +382,8 @@ func _draw() -> void:
 	for i in range(sim.robots.size()):
 		var robot = sim.robots[i]
 		var pos: Vector2 = robot.position
+		if robot.get("incoming", false) and not Rect2(Vector2.ONE * Sim.ROBOT_RADIUS, Sim.SIZE - Vector2.ONE * Sim.ROBOT_RADIUS * 2).has_point(pos):
+			continue
 		if robot.health <= 0:
 			draw_line(pos - Vector2(4, 4), pos + Vector2(4, 4), Color("45505a"))
 			draw_line(pos - Vector2(4, -4), pos + Vector2(4, -4), Color("45505a"))

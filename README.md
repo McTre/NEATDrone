@@ -16,6 +16,17 @@ PowerShell tämän projektin kansiossa:
 ```
 
 Pelissä on kiinteä areena, pelaaja, **8 robottia** ja 16 sekunnin aallot.
+Taistelukenttä seuraa `Levels/Sampple.bmp`-luonnosta: neljä kulmahuonetta,
+avoin keskiristeys ja neljä sisääntuloaukkoa. Seinät piirretään pelin nykyisellä tyylillä.
+Jokaiselle aallolle arvotaan yhteinen sisääntulo koko parvelle sekä hälytysalue
+yhteen neljästä huoneesta. Sama siemen ja aallon numero tuottavat saman arvonnan;
+peräkkäiset aallot voivat arpoa saman paikan uudelleen.
+Dronet syntyvät näkymän ulkopuolelle kahteen jonoon. Sisääntulo on ohjattu
+suoraan aukosta kentälle, minkä jälkeen NEAT ohjaa liikettä. Piilossa olevia
+droneja ei piirretä eikä pelaaja voi lyödä niitä seinän takaa.
+Pelaaja aloittaa keskiristeyksestä. Hälytys aktivoidaan edelleen käymällä alueella.
+Laboratorio ja päivitystaukojen harjoitukset käyttävät aiempaa harjoituskenttää;
+vanhat oppimistulokset eivät mittaa uuden nelihuoneisen kentän reitinvalintaa.
 Tavallinen taistelu alkaa esiharjoitelluilla liikkumisverkoilla.
 Mene turkoosiin ympyrään: alueen keskipiste välitetään roboteille loppuaallon
 ajaksi. Signaali ei seuraa pelaajaa. Taistelun robotit aloittavat 120 pikselin
@@ -234,6 +245,7 @@ $godotExe = 'C:\Users\immuS\Documents\Godot\Godot_v4.7.2-stable_win64_console.ex
 & $godotExe --headless --path . --script tests/pretrained_start.gd
 & $godotExe --headless --path . --script tests/basic_start.gd
 & $godotExe --headless --path . --script tests/swarm_motion.gd
+& $godotExe --headless --path . --script tests/room_layout.gd
 & $godotExe --headless --path . --script tests/scene_smoke.gd
 & $godotExe --headless --path . --script tests/benchmark.gd -- --generations=30 --seed=42
 & $godotExe --headless --path . --script tests/benchmark.gd -- --stage=vision --generations=20 --population=32 --seed=42 --output=res://reports/vision-benchmark.json
