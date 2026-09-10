@@ -456,7 +456,8 @@ func _draw() -> void:
 	label_at(Vector2(974, 611), "%d nodes · %d links · %s" % [chosen.genome.nodes.size(), chosen.genome.genes.size(), "SEES" if sim.sees_player(chosen) else "—"], 12)
 	label_at(Vector2(974, 637), "Move %+.1f Arr %+.0f Search %+.1f" % [chosen.parts.progress, chosen.parts.arrival, chosen.parts.search], 11, CYAN)
 	label_at(Vector2(974, 658), "Hit %+.0f Death %+.0f Dmg %+.0f" % [chosen.parts.injury, chosen.parts.death, chosen.parts.damage], 11, AMBER)
-	label_at(Vector2(974, 680), "Chase %+.1f Wall %+.1f Alive %+.1f" % [chosen.parts.pursuit, chosen.parts.wall, chosen.parts.survival], 10, MUTED)
+	label_at(Vector2(974, 680), "Chase %+.1f Wall %+.1f" % [chosen.parts.pursuit, chosen.parts.wall], 10, MUTED)
+	label_at(Vector2(974, 698), "Alive %+.1f Idle %+.1f" % [chosen.parts.survival, chosen.parts.idle], 10, AMBER)
 
 	label_at(Vector2(28, 732), banner, 14, CYAN if sim.player_health > 0 else AMBER)
 	label_at(Vector2(28, 760), "WASD  move     LMB  shoot     RMB  melee     SPACE  pause     T  lab / combat (reset)     1 / 2 / 3  speed", 13, INK)

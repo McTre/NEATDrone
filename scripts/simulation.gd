@@ -21,6 +21,9 @@ const BULLET_RANGE = 250.0
 const DEATH_PENALTY = -35.0
 const HIT_PENALTY = -12.0
 const NAVIGATION_WEIGHT = 0.08
+const IDLE_RADIUS = 18.0
+const IDLE_GRACE = 2.0
+const IDLE_PENALTY = 3.0
 const RoomLayout = preload("res://scripts/room_layout.gd")
 var room_layout = false
 var entry_index = 0
@@ -97,9 +100,20 @@ func setup(genomes: Array, target: Vector2, spawn: Vector2 = Vector2(-1, -1), la
 			"start_distance": position.distance_to(alert), "wall_time": 0.0,
 			"contact_timer": 0.0, "contacts": 0, "visible_time": 0.0,
 			"shots": [], "hits": 0, "lifetime": 0.0, "best_edge": -1.0, "search_cells": {},
+			"idle_anchor": position, "idle_seconds": 0.0,
 			"parts": {"survival": 0.0, "progress": 0.0, "arrival": 0.0,
 				"damage": 0.0, "wall": 0.0, "death": 0.0, "pursuit": 0.0,
-				"search": 0.0, "injury": 0.0}})
+				"search": 0.0, "injury": 0.0, "idle": 0.0}})
+
+func score_idle(robot: Dictionary, delta: float, has_goal: bool, exempt: bool) -> void:
+	if not has_goal or exempt or robot.position.distance_to(robot.idle_anchor) > IDLE_RADIUS:
+		robot.idle_anchor = robot.position
+		robot.idle_seconds = 0.0
+		return
+	var previous: float = robot.idle_seconds
+	robot.idle_seconds += delta
+	var charged = maxf(0, robot.idle_seconds - IDLE_GRACE) - maxf(0, previous - IDLE_GRACE)
+	robot.parts.idle -= charged * IDLE_PENALTY
 
 func setup_combat(genomes: Array, seed_value: int, wave: int) -> void:
 	var layout_rng = RandomNumberGenerator.new()
@@ -408,6 +422,10 @@ func step(delta: float, movement: Vector2 = Vector2.ZERO, aim_at: Vector2 = Vect
 			robot.parts.wall -= delta * 2.0
 		robot.contact_timer = maxf(0, robot.contact_timer - delta)
 		var touching = robot.position.distance_to(player) < ROBOT_RADIUS + PLAYER_RADIUS
+		var wall_travel = before.distance_to(wall_position)
+		var queued = not lab and wall_travel > 0.1 and before.distance_to(robot.position) < wall_travel * 0.35
+		var attacking = touching and player_health > 0 and (not lab or vision_enabled)
+		score_idle(robot, delta, alert_active or visible, queued or attacking)
 		if lab and vision_enabled and touching and robot.contact_timer <= 0:
 			# Each genome has an independent contact clock and invulnerable target.
 			# One genome cannot steal another genome's evaluation opportunities.

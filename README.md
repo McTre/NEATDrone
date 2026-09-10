@@ -226,6 +226,14 @@ Kolmen luodin tappo tuottaa siis yhteensä −71 pistettä. Pelaajalle tehty
 kontaktivahinko palkitaan +16 pisteellä (aiemmin +8).
 Elossaolopalkkion katto on 1,28 pistettä, joten aikarajaton odottelu ei kasvata
 sitä loputtomasti.
+Kun dronella on aktiivinen aluesignaali tai näkyvä pelaaja mutta se pysyy
+18 pikselin säteellä samasta vertailupaikasta yli 2 sekuntia, se saa tämän jälkeen
+−3 pistettä sekunnissa (`Idle` HUDissa). Pieni edestakainen liike ei nollaa aikaa.
+Vertailupaikalta poistuminen nollaa odotusajan, ei jo kertynyttä rangaistusta.
+Tavoitteeton odottaminen, ohjattu sisääntulo, toisen dronen estämä etenemisyritys
+ja pelaajan kanssa kontaktissa hyökkääminen eivät kerrytä tätä rangaistusta.
+Rangaistus vaikuttaa fitness-valintaan, ei nykyisen verkon painoihin tai liikkeeseen.
+Automaattista irrottautumista eikä uutta paikallaanoloanturia ole lisätty.
 Seinäsensorit eivät käännä robotteja automaattisesti.
 
 Näkö lisää 0,35 pistettä/pikseli robotin omasta liikkeestä kohti sillä hetkellä
@@ -255,6 +263,7 @@ $godotExe = 'C:\Users\immuS\Documents\Godot\Godot_v4.7.2-stable_win64_console.ex
 & $godotExe --headless --path . --script tests/swarm_motion.gd
 & $godotExe --headless --path . --script tests/room_layout.gd
 & $godotExe --headless --path . --script tests/combat_rules.gd
+& $godotExe --headless --path . --script tests/idle_penalty.gd
 & $godotExe --headless --path . --script tests/scene_smoke.gd
 & $godotExe --headless --path . --script tests/benchmark.gd -- --generations=30 --seed=42
 & $godotExe --headless --path . --script tests/benchmark.gd -- --stage=vision --generations=20 --population=32 --seed=42 --output=res://reports/vision-benchmark.json
