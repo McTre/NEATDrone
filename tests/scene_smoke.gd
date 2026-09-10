@@ -9,10 +9,14 @@ func run() -> void:
 	root.add_child(scene)
 	await process_frame
 	scene.paused = true
+	assert(scene.sim.robots.size() == 8)
+	assert(scene.evolution.pretrained_generations > 0)
+	assert(not scene.evolution.vision_enabled)
 	# Exercise a complete lab generation, combat restart and debug rendering.
 	scene.laboratory = true
 	scene.reset_population()
 	scene.paused = true
+	assert(scene.sim.robots.size() == scene.population_size)
 	for i in range(4):
 		scene.sim.step(1.0 / 60.0)
 		scene.finish_wave()
@@ -35,13 +39,21 @@ func run() -> void:
 	event.pressed = true
 	event.physical_keycode = KEY_C
 	scene.laboratory = true
+	scene.reset_population()
+	scene.paused = true
+	scene.vision_requested = true
+	for i in range(4):
+		scene.finish_wave()
+	assert(scene.evolution.population.size() == 48)
 	var generation: int = scene.evolution.generation
 	scene._unhandled_key_input(event)
 	assert(scene.deployment and not scene.laboratory)
+	assert(scene.sim.robots.size() <= scene.combat_enemies)
 	scene.finish_wave()
 	assert(scene.evolution.generation == generation)
 	scene._unhandled_key_input(event)
 	assert(scene.laboratory and not scene.deployment)
+	assert(scene.sim.robots.size() == 48)
 	scene.sim.step(1.0 / 60.0)
 	scene.queue_redraw()
 	await process_frame

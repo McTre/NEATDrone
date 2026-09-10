@@ -585,4 +585,10 @@ During a run, adaptation information remains intentionally incomplete. When the 
 
 Descriptions of NEAT learning should be based on measured behavior rather than claims about what the neural network "understands".
 
-The report is also a learning tool for the player. A new run starts from scratch, but the player retains knowledge about how their behavior shaped the previous opposition and can deliberately play more diversely or deceptively next time.
+The report is also a learning tool for the player. A new run resets player-specific adaptation, but robots may start from a shared pretrained navigation baseline. The player retains knowledge about how their behavior shaped the previous opposition and can deliberately play more diversely or deceptively next time.
+
+### Pretrained Navigation and Encounter Size
+
+Basic wall navigation and response to an alert-area signal may be evolved before release and included as the robots' factory baseline. Players should not need to wait for fundamental locomotion to emerge during each run. This baseline does not include player-specific tactics or the use of later sensor upgrades.
+
+Start with roughly 6–8 active enemies per encounter. The size of an offline training population is independent of the number of robots facing the player. New sensors and counter-tactics still require learning during the run; their acquisition speed must be measured separately from the benefit of pretrained movement.

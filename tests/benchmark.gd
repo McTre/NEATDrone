@@ -12,6 +12,7 @@ func run() -> void:
 	var count = 48
 	var output = "res://reports/benchmark.json"
 	var vision = false
+	var snapshot_path = ""
 	for argument in OS.get_cmdline_user_args():
 		if argument.begins_with("--generations="):
 			generations = maxi(1, argument.get_slice("=", 1).to_int())
@@ -23,6 +24,8 @@ func run() -> void:
 			output = argument.trim_prefix("--output=")
 		elif argument == "--stage=vision":
 			vision = true
+		elif argument.begins_with("--save-navigation="):
+			snapshot_path = argument.trim_prefix("--save-navigation=")
 	var evolution = Neat.new(seed_value, count)
 	if vision:
 		evolution.unlock_vision()
@@ -71,4 +74,16 @@ func run() -> void:
 	print("HOLDOUT final champion:     ", final_champion_holdout)
 	print("HOLDOUT final population:   ", final_population.metrics)
 	print("REPORT ", ProjectSettings.globalize_path(output))
+	if not snapshot_path.is_empty():
+		if vision:
+			push_error("Navigation snapshots must not contain vision training")
+			quit(1)
+			return
+		DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(snapshot_path.get_base_dir()))
+		var snapshot = FileAccess.open(snapshot_path, FileAccess.WRITE)
+		if snapshot == null:
+			quit(1)
+			return
+		snapshot.store_string(JSON.stringify(evolution.navigation_snapshot()))
+		print("NAVIGATION SNAPSHOT ", snapshot_path)
 	quit()

@@ -18,6 +18,8 @@ var sensors = false
 var speed = 1
 @export var seed_value = 42
 @export_range(4, 128) var population_size = 48
+@export_range(4, 16) var combat_enemies = 8
+@export var pretrained_movement = true
 @export_range(0, 100) var vision_generation = 6 # 0 disables scheduled upgrade.
 var vision_requested = false
 var deployment = false
@@ -62,7 +64,11 @@ func _ready() -> void:
 
 func reset_population() -> void:
 	simulation_debt = 0.0
-	evolution = Neat.new(seed_value, population_size)
+	evolution = Neat.new(seed_value, population_size if laboratory else combat_enemies)
+	if not laboratory and pretrained_movement:
+		var data = JSON.parse_string(FileAccess.get_file_as_string("res://assets/navigation.json"))
+		if not data is Dictionary or not evolution.load_navigation(data):
+			push_warning("Navigation starter could not be loaded; using a fresh population")
 	if vision_generation == 1:
 		evolution.unlock_vision()
 	history.clear()
@@ -90,8 +96,15 @@ func begin_wave() -> void:
 			sim.setup(evolution.population, scenario[1], scenario[0], true)
 			banner = "Navigation lab. Vision unlocks at generation %d. V: request upgrade sooner." % vision_generation
 	else:
-		sim.setup(evolution.population, Vector2(450, 150))
+		var active: Array = []
+		var count = mini(combat_enemies, evolution.population.size())
+		var offset = ((wave - 1) * count) % evolution.population.size() if deployment else 0
+		for i in range(count):
+			active.append(evolution.population[(offset + i) % evolution.population.size()])
+		sim.setup(active, Vector2(450, 150))
 		banner = "Enter the cyan circle to trigger a facility alert. V: request vision at next generation."
+		if evolution.pretrained_generations > 0:
+			banner = "%d robots with pretrained navigation. Enter the alert circle; vision is learned during this run." % count
 		if deployment:
 			banner = "Trained population test — evolution frozen. C: return to laboratory."
 		elif evolution.vision_enabled:
@@ -331,7 +344,7 @@ func _draw() -> void:
 	label_at(Vector2(974, 113), "02  /  POPULATION", 14, MUTED)
 	stat(151, "GENERATION", "%03d" % evolution.generation, CYAN)
 	stat(185, "WAVE / TRIAL", "%d / %d" % [wave, trial + 1])
-	stat(219, "ALIVE / TOTAL", "%d / %d" % [sim.alive_count(), evolution.population_size])
+	stat(219, "ACTIVE / POPULATION", "%d / %d" % [sim.alive_count(), evolution.population_size])
 	stat(253, "SPECIES", str(evolution.species_records.size()))
 	stat(287, "TIME LEFT", "%.1fs" % maxf(0, Sim.EPISODE_SECONDS - sim.elapsed))
 	stat(321, "PLAYER HP", "—" if laboratory else "%d" % sim.player_health, CYAN if sim.player_health > 30 else AMBER)

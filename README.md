@@ -14,11 +14,12 @@ PowerShell tämän projektin kansiossa:
 & 'C:\Users\immuS\Documents\Godot\Godot_v4.7.2-stable_win64.exe' --path . --editor
 ```
 
-Pelissä on kiinteä areena, pelaaja, 48 robottia ja 16 sekunnin aallot.
+Pelissä on kiinteä areena, pelaaja, **8 robottia** ja 16 sekunnin aallot.
+Tavallinen taistelu alkaa esiharjoitelluilla liikkumisverkoilla.
 Mene turkoosiin ympyrään: alueen keskipiste välitetään roboteille loppuaallon
 ajaksi. Signaali ei seuraa pelaajaa. Robotit aloittavat ilman näköä ja saavat
 näkösensorin oletuksena sukupolven 6 alussa. Ammuksia tai toisiaan ne eivät
-vielä havaitse. Niiden liike voi aluksi näyttää satunnaiselta.
+vielä havaitse. Pelaajan piilossa oleva sijainti ei välity liikkumisverkkoon.
 
 | Ohjaus | Toiminto |
 | --- | --- |
@@ -37,14 +38,16 @@ vielä havaitse. Niiden liike voi aluksi näyttää satunnaiselta.
 | E (tai F5 työpöydällä) | Vie viimeksi arvioitu mestarigenomi JSON-tiedostoksi |
 
 F5 tarkoittaa pelin omaa näppäintä peli-ikkunan ollessa aktiivinen.
-Populaation koon, siemenen ja `Vision Generation` -asetuksen voi muuttaa
+Laboratorion populaatiokoon, `Combat Enemies` -vihollismäärän, siemenen ja `Vision Generation` -asetuksen voi muuttaa
 `LearningLab`-juurisolmun Inspectorissa. Näköpäivityksen arvo 0 estää automaattisen
 päivityksen, 1 aloittaa suoraan näöllä ja oletus 6 lisää näön viiden arvioidun
 sukupolven jälkeen. V-pyyntö toimii myös automaattisen päivityksen ollessa pois.
 
 ## Oppimisen kokeileminen
 
-Paina **T**. Harjoittelutilassa jokainen genomi käy läpi neljä samaa
+Paina **T**. Laboratorio aloittaa **48 satunnaisella genomilla**, jotta
+oppimisen etenemistä voi edelleen mitata lähtötilanteesta.
+Harjoittelutilassa jokainen genomi käy läpi neljä samaa
 lähtöpaikan ja hälytysalueen yhdistelmää sukupolvea kohti. Signaali on heti
 aktiivinen ja pelaaja sekä aseet ovat poissa kokeesta. Robotit aloittavat
 kussakin tehtävässä samasta kohdasta, joten ne näkyvät aluksi päällekkäin.
@@ -63,10 +66,44 @@ Fitness-kaavio ja lajien vanhat ennätykset nollataan, koska oppimistehtävä mu
 CSV säilyttää molempien vaiheiden tulokset ja erottaa ne `stage`-sarakkeella.
 
 **C** siirtää saman populaation taistelukokeeseen, jossa evoluutio on jäädytetty.
+Kerrallaan taisteluun otetaan enintään `Combat Enemies` robottia (oletus 8).
+Seuraavat aallot kierrättävät populaation muita yksilöitä; koko 48 genomin
+joukko säilyy laboratorioon paluuta varten.
 Painamalla C uudelleen palaat harjoitteluun. Keskeneräisen harjoittelusukupolven
 tehtävät aloitetaan silloin alusta; taistelupisteet eivät vaikuta valintaan.
 **T** aloittaa edelleen kokonaan uuden populaation, joten käytä C:tä opitun
 käyttäytymisen kokeilemiseen.
+
+## Esiharjoiteltu aloitus
+
+`assets/navigation.json` sisältää 48 liikkumisverkkoa, joita on harjoiteltu
+30 sukupolvea vain Stage A:n tehtävillä. Uuden taistelupelin kahdeksan verkkoa
+valitaan tästä joukosta siemenen perusteella ilman palautusta. Sama siemen
+antaa saman aloituksen. `Pretrained Movement` -asetuksella esiharjoittelun
+voi kytkeä pois. Näköä tai pelaajan taktiikoita ei ole esiharjoiteltu.
+
+Tavallisen taistelun kahdeksan genomia evolvoituvat edelleen aallon päättyessä.
+Pelaajan sukupolvilaskuri alkaa yhdestä, eikä 30 offline-sukupolvea lasketa
+näköpäivityksen aikatauluun. Tallenne sisältää myös innovaatiotunnisteet ja
+rakennemutaatioiden historian, jotta jatkoevoluutio ei käytä samoja tunnisteita
+eri rakenteille. Esiharjoittelun fitness ja vanhat lajien ennätykset nollataan.
+
+Tämä muutos poistaa perusliikkumisen opettelun odotuksen. Se ei vielä nopeuta
+uusien taktiikoiden oppimista todistetusti: pieni kahdeksan genomin taistelupopulaatio
+tarjoaa vähemmän vaihtelua kuin laboratorio. Jatkuva yksilöiden korvaaminen
+(rtNEAT) ja taustalla tapahtuva lisäharjoittelu eivät sisälly tähän versioon.
+
+Aloitusjoukon uudelleenharjoittelu:
+
+```powershell
+& $godotExe --headless --path . --script tests/benchmark.gd -- --generations=30 --population=48 --seed=42 --output=res://build/pretraining.json --save-navigation=res://assets/navigation.json
+```
+
+Komento korvaa mukana toimitetun aloitusjoukon. Tavallinen pelaaminen
+ei aja tätä harjoittelua uudelleen eikä odota sitä pelin käynnistyessä.
+
+[Aloitusjoukon vertailutulokset](docs/pretrained-start.md): siemenen 42 kahdeksan
+robotin saapumisprosentti testitehtävillä oli 77,1 %, satunnaisella aloituksella 8,3 %.
 
 Fitness on neljän tehtävän keskiarvo. Se koostuu tavoitetta kohti tapahtuneesta
 nettoetenemisestä, kertaluonteisesta saapumispalkkiosta, pienestä elossaolo-osasta
@@ -93,6 +130,7 @@ $godotExe = 'C:\Users\immuS\Documents\Godot\Godot_v4.7.2-stable_win64_console.ex
 & $godotExe --headless --path . --script tests/core_tests.gd
 & $godotExe --headless --path . --script tests/vision_tests.gd
 & $godotExe --headless --path . --script tests/network_execution.gd
+& $godotExe --headless --path . --script tests/pretrained_start.gd
 & $godotExe --headless --path . --script tests/scene_smoke.gd
 & $godotExe --headless --path . --script tests/benchmark.gd -- --generations=30 --seed=42
 & $godotExe --headless --path . --script tests/benchmark.gd -- --stage=vision --generations=20 --population=32 --seed=42 --output=res://reports/vision-benchmark.json

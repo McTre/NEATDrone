@@ -1,0 +1,23 @@
+{
+	"active_robots": 8,
+	"fresh_start": {
+		"arrival_rate": 0.0833333333333333,
+		"contact_rate": 0.0,
+		"contacts": 0.0,
+		"fitness": -1.61635225401997,
+		"progress_px": 80.5382135709128,
+		"visible_seconds": 0.0,
+		"wall_seconds": 7.24722222222229
+	},
+	"offline_generations": 30,
+	"pretrained_start": {
+		"arrival_rate": 0.770833333333333,
+		"contact_rate": 0.0,
+		"contacts": 0.0,
+		"fitness": 88.4719351073602,
+		"progress_px": 584.327554198603,
+		"visible_seconds": 0.0,
+		"wall_seconds": 2.52812500000004
+	},
+	"seed": 42
+}

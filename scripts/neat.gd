@@ -84,6 +84,66 @@ var champion = null
 var last_best = 0.0
 var last_average = 0.0
 var vision_enabled = false
+var pretrained_generations = 0
+
+func navigation_snapshot() -> Dictionary:
+	assert(not vision_enabled)
+	var genomes: Array = []
+	for genome in population:
+		genomes.append({"nodes": genome.nodes.duplicate(), "genes": genome.genes.duplicate(true),
+			"input_ids": genome.input_ids.duplicate()})
+	return {"format": 1, "stage": "navigation", "trained_generations": generation - 1,
+		"genomes": genomes, "innovations": innovations.duplicate(), "splits": splits.duplicate(),
+		"next_node": next_node, "next_innovation": next_innovation}
+
+func load_navigation(data: Dictionary) -> bool:
+	if data.get("format") != 1 or data.get("stage") != "navigation" or data.get("genomes", []).is_empty():
+		return false
+	var source: Array = data.genomes
+	var candidates: Array = range(source.size())
+	# Deterministic sampling without replacement, independently of global RNG.
+	for i in range(candidates.size() - 1, 0, -1):
+		var j = rng.randi_range(0, i)
+		var previous = candidates[i]
+		candidates[i] = candidates[j]
+		candidates[j] = previous
+	var restored: Array = []
+	for i in range(population_size):
+		var record: Dictionary = source[candidates[i % candidates.size()]]
+		if record.get("input_ids", []).size() != INPUT_COUNT:
+			return false
+		var genome = Genome.new()
+		for id in record.nodes:
+			genome.nodes[int(id)] = float(record.nodes[id])
+		genome.input_ids = []
+		for id in record.input_ids:
+			genome.input_ids.append(int(id))
+		genome.genes = record.genes.duplicate(true)
+		for gene in genome.genes:
+			gene.from = int(gene.from)
+			gene.to = int(gene.to)
+			gene.innovation = int(gene.innovation)
+		genome.compile()
+		restored.append(genome)
+	population = restored
+	innovations = data.innovations.duplicate()
+	for key in innovations:
+		innovations[key] = int(innovations[key])
+	splits.clear()
+	for key in data.splits:
+		splits[int(key)] = int(data.splits[key])
+	next_node = int(data.next_node)
+	next_innovation = int(data.next_innovation)
+	pretrained_generations = int(data.trained_generations)
+	generation = 1 # Player-run generations do not include offline training.
+	champion = null
+	last_best = 0.0
+	last_average = 0.0
+	vision_enabled = false
+	species_records.clear()
+	species_serial = 0
+	assign_species()
+	return true
 
 func unlock_vision() -> void:
 	if vision_enabled:
