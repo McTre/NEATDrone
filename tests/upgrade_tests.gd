@@ -31,6 +31,19 @@ func run() -> void:
 		assert(arena.evolution.population[0].genes == genes, "Preview must not mutate live genomes")
 		assert(screen.ticks > 0, "Telemetry must come from a running simulation")
 		assert(screen.projectile == projectile)
+		# Complete training deterministically, independent of machine speed.
+		for tick in range(1920):
+			screen.training_step()
+		assert(screen.completed_generations >= 2, "Complete trial sets must evolve")
+		assert(screen.results.size() == screen.completed_generations)
+		assert(arena.evolution.population[0].genes == genes, "Training remains isolated until deployment")
+		var trained = screen.learner
+		var trained_genes = trained.population.map(func(genome): return genome.genes.duplicate(true))
+		var completed: int = screen.completed_generations
+		# An unfinished trial cannot breed or change the committed population.
+		screen.setup_trial()
+		screen.training_step()
+		assert(screen.completed_generations == completed)
 		if projectile and "--screenshot" in OS.get_cmdline_user_args():
 			screen.elapsed = 5.0
 			screen.update_labels()
@@ -39,9 +52,14 @@ func run() -> void:
 			root.get_texture().get_image().save_png("res://build/upgrade-screen.png")
 		screen.advance(15.0)
 		assert(arena.upgrade_screen == null)
+		assert(arena.evolution == trained, "Next wave must use the trained evolution state")
+		assert(arena.evolution.generation == generation, "Training must preserve upgrade schedule")
+		assert(arena.evolution.champion == null, "Training fitness must not be exported as combat fitness")
+		for i in range(trained_genes.size()):
+			assert(arena.sim.robots[i].genome.genes == trained_genes[i])
 		assert(arena.sim.elapsed == 0, "Next wave starts fresh without catch-up ticks")
 		assert(arena.sim.observations(arena.sim.robots[0]).size() == (19 if projectile else 13))
 	arena.finish_wave()
 	assert(arena.upgrade_screen == null, "Already installed upgrades must not repeat")
-	print("UPGRADE TESTS: both transitions, input lock, frozen combat, isolated preview and resume passed")
+	print("UPGRADE TESTS: isolated evolution, complete evaluations, trained deployment, upgrade schedule and resume passed")
 	quit()

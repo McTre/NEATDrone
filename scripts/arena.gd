@@ -5,6 +5,7 @@ const Sim = preload("res://scripts/simulation.gd")
 const Training = preload("res://scripts/training.gd")
 const UpgradeScreen = preload("res://scripts/upgrade_screen.gd")
 var upgrade_screen = null
+var upgrade_training_reports: Array = []
 const ORIGIN = Vector2(28, 124)
 const INK = Color("d5e5ea")
 const MUTED = Color("78929e")
@@ -67,6 +68,7 @@ func _ready() -> void:
 		banner = "Click the game, then SPACE to start. WASD: move / mouse: aim / T: learning lab."
 
 func reset_population() -> void:
+	upgrade_training_reports.clear()
 	if is_instance_valid(upgrade_screen):
 		upgrade_screen.queue_free()
 	upgrade_screen = null
@@ -174,13 +176,24 @@ func finish_wave() -> void:
 		upgrade_screen = UpgradeScreen.new()
 		upgrade_screen.z_index = 10
 		add_child(upgrade_screen)
-		upgrade_screen.start(evolution.population, evolution.projectiles_enabled, sim.kills)
+		upgrade_screen.start(evolution, evolution.projectiles_enabled, sim.kills)
 		upgrade_screen.completed.connect(finish_upgrade)
 		simulation_debt = 0.0
 	else:
 		begin_wave()
 
 func finish_upgrade() -> void:
+	var report = {"stage": stage_name(), "generations": upgrade_screen.completed_generations,
+		"trials": upgrade_screen.trials, "simulated_seconds": upgrade_screen.ticks * Sim.STEP,
+		"results": upgrade_screen.results.duplicate(true)}
+	upgrade_training_reports.append(report)
+	print("UPGRADE TRAINING: ", JSON.stringify(report))
+	if upgrade_screen.completed_generations > 0:
+		var live_generation = evolution.generation
+		evolution = upgrade_screen.learner
+		# Training generations do not advance the wave-based hardware schedule.
+		evolution.generation = live_generation
+		evolution.reset_evaluation()
 	upgrade_screen.queue_free()
 	upgrade_screen = null
 	simulation_debt = 0.0
@@ -287,7 +300,8 @@ func save_champion(path: String = "user://champion.json") -> void:
 		"seed": seed_value, "fitness": genome.fitness, "nodes": genome.nodes,
 		"genes": genome.genes, "inputs": genome.input_ids.size(),
 		"input_ids": genome.input_ids, "vision": evolution.vision_enabled,
-		"projectiles": evolution.projectiles_enabled}, "\t")
+		"projectiles": evolution.projectiles_enabled,
+		"upgrade_training": upgrade_training_reports}, "\t")
 	if OS.has_feature("web"):
 		JavaScriptBridge.download_buffer(json.to_utf8_buffer(), "neatdrone-champion.json", "application/json")
 		banner = "Champion downloaded as neatdrone-champion.json."

@@ -123,6 +123,11 @@ try {
     if (-not (Test-Path -LiteralPath $championFile)) { throw 'Browser champion download failed' }
     $champion = Get-Content -Raw -LiteralPath $championFile | ConvertFrom-Json
     if ($champion.inputs -ne 19 -or -not $champion.vision -or -not $champion.projectiles) { throw 'Projectile upgrade did not reach the downloaded genome' }
+    if ($champion.upgrade_training.Count -ne 2) { throw 'Both upgrade training reports must be exported' }
+    foreach ($trainingRun in $champion.upgrade_training) {
+        if ($trainingRun.generations -lt 1) { throw "No training generation completed for $($trainingRun.stage) in this browser run" }
+        Write-Output "UPGRADE: $($trainingRun.stage), $($trainingRun.generations) generations, $($trainingRun.trials) trials"
+    }
     Press-Key 't' 'KeyT' 84
     Wait-Page 1000
     Press-Key ' ' 'Space' 32

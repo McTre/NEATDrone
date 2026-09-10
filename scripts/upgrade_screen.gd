@@ -1,6 +1,5 @@
 extends Node2D
-## A timed presentation with an isolated, read-only rehearsal of the upgraded policy.
-## No scores or mutations from this preview enter the live population.
+## Bounded training on a separate evolution state; only complete evaluations breed.
 signal completed
 const Sim = preload("res://scripts/simulation.gd")
 const Training = preload("res://scripts/training.gd")
@@ -17,11 +16,20 @@ var contacts = 0
 var hits = 0
 var fields: Array[Label] = []
 var refresh = 0.0
+var learner = null
+var completed_generations = 0
+var scores: Array = []
+var results: Array = []
+const CASE_COUNT = 4
+const TRIAL_TICKS = 240
+var trial_ticks = 0
 
-func start(population: Array, bullets: bool, _losses: int) -> void:
+func start(evolution, bullets: bool, _losses: int) -> void:
 	projectile = bullets
-	for genome in population:
-		genomes.append(genome.copy())
+	learner = evolution.training_copy()
+	genomes = learner.population
+	scores.resize(genomes.size())
+	scores.fill(0.0)
 	setup_trial()
 	add_text(Vector2(64, 74), "MASTER AI", 16, CYAN)
 	add_text(Vector2(64, 244), "", 30, Color.WHITE)
@@ -44,10 +52,37 @@ func add_text(pos: Vector2, value: String, size: int, color: Color) -> void:
 	fields.append(label)
 
 func setup_trial() -> void:
-	if projectile:
-		Training.setup_fire(rehearsal, genomes, Training.FIRE_CASES[trials % Training.FIRE_CASES.size()])
+	trial_ticks = 0
+	var index = trials % CASE_COUNT
+	# Keep pursuit in the objective when adding gunfire, so hiding is not enough.
+	if projectile and index >= 2:
+		var scenario: Array = Training.FIRE_CASES[index].duplicate()
+		scenario[0] = scenario[2] + (scenario[0] - scenario[2]).normalized() * 130.0
+		scenario[3] = 0.7 if index == 2 else 0.45
+		Training.setup_fire(rehearsal, genomes, scenario)
 	else:
-		Training.setup_vision(rehearsal, genomes, Training.VISION_CASES[trials % Training.VISION_CASES.size()])
+		Training.setup_vision(rehearsal, genomes, Training.VISION_CASES[index])
+
+func training_step() -> void:
+	rehearsal.step(Sim.STEP)
+	ticks += 1
+	trial_ticks += 1
+	if trial_ticks < TRIAL_TICKS and rehearsal.alive_count() > 0:
+		return
+	for i in range(genomes.size()):
+		var robot = rehearsal.robots[i]
+		contacts += robot.contacts
+		hits += robot.hits
+		scores[i] += rehearsal.fitness(robot) / CASE_COUNT
+	trials += 1
+	if trials % CASE_COUNT == 0:
+		learner.evolve(scores)
+		completed_generations += 1
+		results.append({"generation": completed_generations, "best": learner.last_best,
+			"mean": learner.last_average, "contacts": contacts, "hits": hits})
+		genomes = learner.population
+		scores.fill(0.0)
+	setup_trial()
 
 func advance(delta: float) -> void:
 	elapsed = minf(DURATION, elapsed + delta)
@@ -55,14 +90,7 @@ func advance(delta: float) -> void:
 	var deadline = Time.get_ticks_usec() + 2500
 	if elapsed < DURATION - 1.0:
 		while Time.get_ticks_usec() < deadline:
-			rehearsal.step(Sim.STEP)
-			ticks += 1
-			if rehearsal.elapsed >= 4.0 or rehearsal.alive_count() == 0:
-				for robot in rehearsal.robots:
-					contacts += robot.contacts
-					hits += robot.hits
-				trials += 1
-				setup_trial()
+			training_step()
 	refresh -= delta
 	if refresh <= 0:
 		refresh = 0.1
@@ -88,7 +116,7 @@ func update_labels() -> void:
 	var phase = 0 if elapsed < 3 else (1 if elapsed < 6 else (2 if elapsed < 11 else (3 if elapsed < DURATION - 1 else 4)))
 	fields[2].text = phases[phase]
 	fields[3].text = "%d%%" % roundi(minf(1, elapsed / (DURATION - 1)) * 100)
-	fields[4].text = "%d trials   /   %.1f s simulated" % [trials, ticks * Sim.STEP]
+	fields[4].text = "%d generations   /   %d trials" % [completed_generations, trials]
 
 func _draw() -> void:
 	draw_rect(Rect2(0, 0, 1280, 800), Color("080e16"))

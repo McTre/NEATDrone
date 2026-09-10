@@ -58,10 +58,28 @@ vaiheiden `Uploading new schematics`, `Rewriting battle code`, `Simulating`,
 `Computing` ja `Ready` kautta seuraavaan aaltoon. Palkki näyttää päivitysjakson
 etenemisen, ei oppimisen onnistumisprosenttia.
 
-Sivussa näkyvät oikea simulaatio, simuloitu aika ja valmistuneet neljän sekunnin
-koejaksot. Tässä käyttöliittymäkokeilussa simulaatio
-ajetaan populaation kopioilla: se **ei vielä harjoita tai evolvoi** pelin droneja.
-Laskentaa tehdään pienissä, noin 2,5 ms erissä, jotta selain pysyy sulavana.
+Sivussa näkyvät oikea simulaatio sekä valmistuneet harjoitussukupolvet ja koejaksot.
+Tauko **harjoittaa nyt oikeasti droneja** erillisessä evoluutiotilassa.
+Jokainen genomi arvioidaan neljässä enintään neljän sekunnin tehtävässä ennen
+valintaa, risteytystä ja mutaatioita. Näkö harjoittelee liikkuvan kohteen tavoittelua.
+Luotinäkö yhdistää kaksi tavoittelutehtävää ja kaksi läheltä alkavaa ampumistehtävää,
+joissa laukausvälit ovat 0,7 ja 0,45 sekuntia. Liike tulee edelleen neuroverkosta.
+
+Laskentaa tehdään noin 2,5 ms erissä; yksittäinen simulaatioaskel tai evoluutio
+voi ylittää tämän pehmeän budjetin. Viimeinen sekunti varataan Ready-vaiheelle.
+Vain kokonaan arvioidut tehtäväsarjat tuottavat uuden populaation. Kesken jäävän
+arvioinnin pisteet hylätään; seuraava aalto käyttää viimeisimmän valmistuneen
+valinnan jälkeläisiä. Jos yhtään sarjaa ei valmistu, alkuperäinen populaatio säilyy.
+Tauon sukupolvet eivät muuta pelin sukupolvilaskuria tai päivitysaikataulua.
+Harjoitusfitness ja lajien ennätykset nollataan takaisin taisteluun siirryttäessä.
+Harjoitusraportit tulostuvat lokiin ja sisältyvät E:llä vietävään JSONiin
+`upgrade_training`-kentässä. Sukupolvien määrä riippuu koneesta; lyhyt harjoittelu
+ei takaa parempaa taistelutaitoa.
+Paikallisessa Edge-toimintakokeessa kahdeksan dronen näköpäivityksen aikana
+valmistui 2 sukupolvea (11 tehtävää) ja luotipäivityksessä 3 (14 tehtävää).
+Tämä mittaa harjoittelun valmistumista; se ei vielä osoita taidon yleistymistä
+varsinaista pelaajaa vastaan. Raporttien `contacts` ja `hits` ovat tauon alusta
+kertyviä kokonaismääriä.
 Valmiiksi asennettu kyky ei toista ruutua tavallisten aaltojen välissä.
 
 Nopea kokeilu taistelussa: **V, N** avaa ensimmäisen päivitysruudun.

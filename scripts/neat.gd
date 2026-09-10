@@ -87,6 +87,32 @@ var vision_enabled = false
 var projectiles_enabled = false
 var pretrained_generations = 0
 
+func training_copy():
+	var copy = get_script().new(42, population_size)
+	copy.population = population.map(func(genome): return genome.copy())
+	copy.innovations = innovations.duplicate(true)
+	copy.splits = splits.duplicate(true)
+	copy.next_innovation = next_innovation
+	copy.next_node = next_node
+	copy.rng.state = rng.state
+	copy.generation = generation
+	copy.vision_enabled = vision_enabled
+	copy.projectiles_enabled = projectiles_enabled
+	copy.pretrained_generations = pretrained_generations
+	copy.reset_evaluation()
+	return copy
+
+func reset_evaluation() -> void:
+	# Scores and stagnation from different tasks must not compete.
+	champion = null
+	last_best = 0.0
+	last_average = 0.0
+	for genome in population:
+		genome.fitness = 0.0
+	species_records.clear()
+	species_serial = 0
+	assign_species()
+
 func navigation_snapshot() -> Dictionary:
 	assert(not vision_enabled)
 	var genomes: Array = []
