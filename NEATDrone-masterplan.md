@@ -29,7 +29,7 @@ This separation is fundamental.
 
 **NEAT**
 - Controls individual robot behavior.
-- Evolves through generations/waves.
+- Evolves at evaluation boundaries, including OTA updates to living robots.
 - Receives only the sensory inputs currently available to the robot hardware.
 - Learns how to use newly unlocked inputs and outputs without being told their correct purpose.
 
@@ -292,6 +292,27 @@ Potential fitness components include:
 - reduced time stuck against walls
 
 Champion genomes should survive between generations so useful behavior is not unnecessarily lost.
+
+### Live OTA updates and reinforcements
+
+Policy evaluation does not require the death of every robot. At an OTA boundary,
+evaluate the current policies, including robots destroyed during that interval,
+and create replacement networks for living bodies through the usual NEAT selection,
+crossover and mutation. Preserve position, health and motion. Reset the new policy's
+evaluation scores and count each destroyed policy only once. An idle robot can
+therefore receive a different policy without dying or being visibly replaced.
+
+The current POC updates every 60 seconds of active simulation time and briefly
+shows `Updated` above living drones. One reinforcement spawns every 15 seconds;
+timers continue across waves and pause during intermissions. Eight drones start
+each wave, and the next wave requires all current drones to be destroyed.
+Player position is preserved. Hardware upgrades remain separate, wave-based events.
+
+For the final game, player objectives may trigger reinforcements in the current
+level. Restricted player visibility and additional objectives could make a waiting
+drone an interesting ambush rather than a stalled wave. These are design directions,
+not implemented POC features. OTA may eventually be signalled through facility
+audio or Master AI remarks so an unexpected behavior change also creates tension.
 
 Future versions may support several evolutionary lineages/species with naturally emerging behavioral differences.
 
@@ -589,6 +610,20 @@ The report is also a learning tool for the player. A new run resets player-speci
 
 ### Pretrained Navigation and Encounter Size
 
-Basic wall navigation and response to an alert-area signal may be evolved before release and included as the robots' factory baseline. Players should not need to wait for fundamental locomotion to emerge during each run. This baseline does not include player-specific tactics or the use of later sensor upgrades.
+Basic wall navigation, response to an alert-area signal and short-range pursuit
+can be evolved before release and included as the robots' factory baseline.
+The POC now includes this baseline with 120-pixel vision. It does not include
+player-specific tactics or mastery of later sensor upgrades.
 
-Start with roughly 6–8 active enemies per encounter. The size of an offline training population is independent of the number of robots facing the player. New sensors and counter-tactics still require learning during the run; their acquisition speed must be measured separately from the benefit of pretrained movement.
+Start encounters with roughly 6–8 enemies; reinforcements can increase the active
+count if the player takes longer. The size of an offline training population is
+independent of the number of robots facing the player. New sensors and counter-tactics
+still require learning during the run; their acquisition speed must be measured
+separately from the benefit of pretrained movement.
+
+Hardware intermissions can provide short, upgrade-specific practice while the
+player reads the Master AI's internal thoughts. The POC runs real simulations
+during a 15-second screen, showing progress and training data. The AI's tone is
+interested and analytical, with the clear intention of eliminating the player.
+Completed evaluations are required before adopting trained offspring; a short
+intermission does not guarantee useful adaptation against a skilled player.

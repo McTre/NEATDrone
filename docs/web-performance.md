@@ -4,6 +4,12 @@
 Jokaisessa tilassa mitattiin selaimen `requestAnimationFrame`-välejä viisi sekuntia.
 Kyse on paikallisesta selainkokeesta, ei itch.io-palvelimella tehdystä mittauksesta.
 
+Nämä luvut kuvaavat alkuperäistä suorituskykykorjausta. Nykyinen taistelu alkaa
+kahdeksalla dronella, saa lisädronen 15 sekunnin välein ja päivittää elossa olevien
+verkot 60 sekunnin välein. Nelihuoneinen kenttä, dronejen väliset törmäykset ja
+OTA eivät sisälly alla olevaan FPS-vertailuun. Nykyversion selaintesti on läpäisty,
+mutta tämän muuttuvan dronemäärän suorituskyvystä ei ole uutta vertailumittausta.
+
 ## Vertailu samalla CPU-hidastuksella
 
 Edgen kehittäjätyökalujen CPU-hidastus asetettiin arvoon 4 molemmissa ajoissa.

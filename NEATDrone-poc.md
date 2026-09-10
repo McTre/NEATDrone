@@ -1,5 +1,39 @@
 # NEATDrone — Proof of Concept
 
+## Current playable prototype (2026-09-10)
+
+The sections below retain the staged experiment design. This status describes
+the implemented combat loop; Phase 2 darkness and hearing remain future work.
+See [README](README.md) for controls, builds and test commands.
+
+- The fixed arena has four rooms and four entrances. Each wave chooses one
+  shared entrance and one alert room. Drones spawn outside the visible arena
+  and use fixed ingress before handing movement over to NEAT.
+- A wave starts with eight drones. One reinforcement arrives from the same
+  entrance every 15 seconds. The next wave starts only when no drones remain
+  alive; a final kill takes priority over a reinforcement due on that tick.
+  Player position survives wave transitions and hardware intermissions.
+- Every 60 seconds, OTA evaluates the current policies and assigns offspring
+  networks to living drones. Position, health and motion survive the update.
+  Each updated drone shows `Updated` for two seconds. Evaluation scores reset;
+  drones killed since the previous evaluation contribute once, without revival.
+- Both timers continue across waves and measure active simulation time. Pauses
+  and hardware intermissions stop them. OTA does not advance the wave-based
+  hardware unlock schedule or alter the frozen laboratory deployment.
+- Drones have 3 HP; bullets deal 1 damage and travel at most 250 pixels.
+  Melee deals 2 damage. Living drones cannot overlap. Acceleration is limited
+  to 1200 px/s² and body turning to 540 degrees/s; vision still covers 360 degrees.
+- Staying within 18 pixels of an anchor while an objective is available incurs
+  an idle penalty of 3 points/s after two seconds of grace. Ingress, attacking
+  in contact and movement blocked by another drone are exempt. OTA lets this
+  penalty affect selection while the drone is still alive.
+- New hardware opens a 15-second Master AI intermission with short internal
+  thoughts, a progress bar and real background training. Only fully evaluated
+  training generations are adopted. The AI is curious about the player and
+  still wants to eliminate them. Training is a head start, not proof of mastery.
+- Desktop and single-threaded browser exports use the same rules. The itch.io
+  upload artifact is `build/NEATDrone-itch-web.zip`.
+
 Basic behavior update: combat now starts with 120-pixel, wall-occluded player
 vision and a pretrained population for both alert navigation and pursuit.
 The first vision upgrade expands range to 300 pixels without adding inputs or
@@ -88,10 +122,11 @@ Robots:
 - damage the player through physical contact
 - can be killed by bullets
 - can be killed by melee
-- initially have no vision
+- start combat with pretrained pursuit and 120-pixel player vision
 - initially have no hearing
 
-Without useful sensory information, their movement should be produced by their neural network and will initially appear effectively random.
+The navigation laboratory still starts without vision and with random networks
+to measure learning independently of the bundled combat baseline.
 
 There must be no hard-coded player pursuit.
 
@@ -117,7 +152,8 @@ These values describe the center of the alerted area.
 
 The intended behavior is for evolution to discover that moving toward this signal is useful.
 
-Once robots reach the area, they still do not initially know where the player is.
+The signal never supplies the player's exact location. Direct player perception
+requires short-range sight with no intervening wall, and takes priority over the signal.
 
 This is the first test of the separation between:
 
@@ -200,6 +236,10 @@ Record fitness components separately in debug output so it is possible to see wh
 ## 9. Evolution / Waves
 
 Each wave represents an evaluation/generation step or contains enough evaluated individuals to create the next generation.
+
+Combat also evaluates policies at each minute's OTA boundary while bodies remain
+alive. A combat wave and a policy evaluation are therefore separate events.
+Hardware unlocks still follow completed waves, not the number of OTA evaluations.
 
 The exact population size should remain configurable.
 
@@ -400,7 +440,7 @@ Do not add these until the basic POC works:
 - scrolling camera
 - final graphics
 - sound system
-- Master AI dialogue
+- full telemetry-driven Master AI dialogue (scripted upgrade thoughts exist)
 - adaptive upgrade scoring
 - night vision
 - thermal vision
@@ -449,7 +489,7 @@ Nothing else is required before that works.
 
 ---
 
-## 12. POC Phase 2 — Darkness, Sound and Occlusion
+## 18. POC Phase 2 — Darkness, Sound and Occlusion
 
 Phase 2 begins only after the basic movement/alert-area test is working well enough to demonstrate measurable learning.
 
@@ -463,7 +503,7 @@ The arena gains three new environmental concepts:
 
 The Master AI also begins receiving simple telemetry about the conditions under which robots are destroyed.
 
-### 12.1 Darkness zones
+### 18.1 Darkness zones
 
 Add clearly defined dark regions to the arena.
 
@@ -493,7 +533,7 @@ robot_kills_while_player_dark = 11
 
 Later this event can contribute to upgrades such as Night Vision and Thermal Vision.
 
-### 12.2 Sound zones
+### 18.2 Sound zones
 
 Add fixed areas on the floor that generate a sound event when the player steps on or moves across them.
 
@@ -526,7 +566,7 @@ KOPKOP
 
 The first implementation may use only one or two categories if that keeps the test simpler.
 
-### 12.3 Gunshot sound
+### 18.3 Gunshot sound
 
 Every player shot creates a sound event at the firing position.
 
@@ -545,7 +585,7 @@ strength = 1.0
 
 The exact category can be changed later.
 
-### 12.4 Robot hearing upgrade
+### 18.4 Robot hearing upgrade
 
 At a predetermined Phase 2 wave, robots gain hearing inputs.
 
@@ -569,7 +609,7 @@ Target behavior:
 
 False reactions are desirable. The robot should have to learn which audible patterns correlate with useful outcomes.
 
-### 12.5 Vision and line-of-sight obstacles
+### 18.5 Vision and line-of-sight obstacles
 
 Add interior walls/obstacles that robots cannot see through.
 
@@ -586,7 +626,7 @@ The robot must never receive player position through a wall simply because the p
 
 These obstacles should still use the existing wall sensing/collision system for navigation.
 
-### 12.6 Suggested Phase 2 upgrade order
+### 18.6 Suggested Phase 2 upgrade order
 
 Use predetermined waves at first. Exact wave numbers remain configurable.
 
@@ -614,7 +654,7 @@ Phase 2E
 
 Night vision should only expose information to NEAT. It must not introduce a hard-coded pursuit behavior.
 
-### 12.7 Phase 2 success criteria
+### 18.7 Phase 2 success criteria
 
 Phase 2 is successful when at least some of the following can be observed across generations:
 

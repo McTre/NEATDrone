@@ -4,6 +4,9 @@ Godot 4.7.2 -projekti. POC toteuttaa **Stage A:n** (liikkuminen, seinäsensorit
 ja Master AI:n hälytysalue), **Stage B:n** (rajattu näkö ja pelaajan tavoittelu)
 sekä **Stage C:n** (pelaajan luotien havainnointi).
 
+[POC-suunnitelma ja toteutuksen tila](NEATDrone-poc.md) kuvaa nykyisen kokeen.
+[Master Plan](NEATDrone-masterplan.md) kuvaa myös lopullisen pelin tulevia ominaisuuksia.
+
 ## Käynnistys
 
 Tuo `project.godot` Godotiin ja käynnistä **F6**:lla avoin `arena.tscn`
@@ -29,6 +32,11 @@ Paikallaanolon rangaistus pääsee näin vaikuttamaan valintaan ilman dronen kuo
 Molemmat ajastimet mittaavat aktiivista peliaikaa ja jatkuvat aaltojen yli;
 tauko ja kyvyn päivitysruutu pysäyttävät ne. Laboratorion jäädytetyssä
 testikäytössä OTA ei muuta verkkoja.
+
+Viimeisen dronen tuhoaminen päättää aallon ennen samalla askeleella erääntyvää
+lisädronea. OTA ei kasvata näkyvää sukupolvilaskuria eikä aikaista kykyjen
+avautumista. Nopeutusnäppäimet nopeuttavat myös näitä peliajan ajastimia;
+kuormituksessa simulaatioaika voi edetä seinäkelloa hitaammin.
 
 N säilyy manuaalisena testaus-/jatkonäppäimenä. Laboratorion 16 sekunnin
 tehtävärajat ja päivitysruudun 15 sekunnin tauko säilyvät.
@@ -322,14 +330,17 @@ Graafisen savutestin voi ajaa ilman `--headless`-valitsinta ja lisätä loppuun
 - `scripts/arena.gd`: piirretty areena, ohjaus, aaltosilmukka ja debug-näkymä.
 - `tests/`: rakenteen ja pelisääntöjen tarkistukset sekä oppimisen vertailuajo.
 
-Verkossa on alussa 9 havaintoa, vakiosyöte ja 2 liiketulostetta. Havainnot ovat
+Laboratorion aloitusverkossa on 9 havaintoa, vakiosyöte ja 2 liiketulostetta.
+Taistelun esiharjoiteltu aloitusverkko sisältää jo 13 havaintoa lyhyen näön ansiosta.
+Navigoinnin havainnot ovat
 kolme seinäsädettä (eteen, vasemmalle, oikealle), hälytyssuunta x/y,
 hälytyksen etäisyys, toteutunut nopeus x/y ja signaalin aktiivisuus.
 Suunta ja liike ovat areenan koordinaatistossa. Säteen suunta perustuu robotin
 viimeiseen liikepyyntöön. Aktiivisuus erottaa puuttuvan signaalin nollaetäisyydestä.
 
 Näkö lisää havaintopaikkoihin 9–12 suunnan x/y, etäisyyden ja näkyvyyslipun.
-Kantama on 300 pikseliä, näkökenttä 360 astetta ja näköyhteys testataan pelaajan
+Kantama on aluksi 120 pikseliä ja päivityksen jälkeen 300 pikseliä,
+näkökenttä 360 astetta ja näköyhteys testataan pelaajan
 keskipisteeseen. Opaakki seinä tai kantaman ylitys nollaa kaikki neljä arvoa
 heti. Kohteen viimeistä sijaintia ei muisteta erillisellä koodilla.
 Havaintopaikat ja neuronien tunnisteet ovat erillisiä, jotta päivitys ei
