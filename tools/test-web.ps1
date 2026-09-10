@@ -1,4 +1,4 @@
-param([int]$Port = 8765, [int]$DebugPort = 9223)
+param([int]$Port = 8765, [int]$DebugPort = 9223, [switch]$PerformanceOnly, [string]$ReportName = 'web-performance', [int]$CpuRate = 1)
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path $PSScriptRoot -Parent
 $buildRoot = Join-Path $projectRoot 'build'
@@ -51,6 +51,20 @@ function Press-Key([string]$Key, [string]$Code, [int]$VirtualKey) {
     Send-CDP 'Input.dispatchKeyEvent' @{type='keyUp';key=$Key;code=$Code;windowsVirtualKeyCode=$VirtualKey} | Out-Null
     Wait-Page 150
 }
+function Measure-Frames([string]$Name) {
+    $expression = @'
+new Promise(resolve => {
+ const samples=[]; let last=performance.now(); const start=last;
+ function frame(){ const now=performance.now(); samples.push(now-last); last=now;
+ if(now-start<5000){requestAnimationFrame(frame);return;}
+ const sorted=samples.slice(1).sort((a,b)=>a-b);
+ resolve({fps:1000/(sorted.reduce((a,b)=>a+b,0)/sorted.length),p95_ms:sorted[Math.floor(sorted.length*.95)],frames:sorted.length}); }
+ requestAnimationFrame(frame);
+})
+'@
+    $result = Send-CDP 'Runtime.evaluate' @{expression=$expression;awaitPromise=$true;returnByValue=$true}
+    return @{mode=$Name;measurement=$result.result.value}
+}
 try {
     $serverScript = Join-Path $PSScriptRoot 'serve-web.ps1'
     $server = Start-Process powershell.exe -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File', ('"' + $serverScript + '"'), '-Port', $Port) -WindowStyle Hidden -PassThru
@@ -73,6 +87,19 @@ try {
     $ready = $state.result.value | ConvertFrom-Json
     if ($ready.loading -or -not $ready.canvas -or $ready.threads) { throw "Web game not ready: $($state.result.value)" }
     Send-CDP 'Runtime.evaluate' @{expression='document.getElementById("canvas").focus()'} | Out-Null
+    if ($PerformanceOnly) {
+        Send-CDP 'Emulation.setCPUThrottlingRate' @{rate=$CpuRate} | Out-Null
+        $measurements = @()
+        $measurements += Measure-Frames 'paused'
+        Press-Key ' ' 'Space' 32
+        $measurements += Measure-Frames 'combat_1x'
+        Press-Key 't' 'KeyT' 84
+        $measurements += Measure-Frames 'lab_8x'
+        $measurements | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $buildRoot "$ReportName.json")
+        $measurements | ConvertTo-Json -Depth 8 | Write-Output
+        if ($script:browserErrors.Count) { throw ($script:browserErrors -join "`n") }
+        return
+    }
     Press-Key ' ' 'Space' 32
     Send-CDP 'Input.dispatchKeyEvent' @{type='keyDown';key='d';code='KeyD';windowsVirtualKeyCode=68} | Out-Null
     Wait-Page 500

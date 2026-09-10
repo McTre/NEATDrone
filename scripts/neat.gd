@@ -17,6 +17,10 @@ class Genome:
 	var incoming: Dictionary = {}
 	var values: PackedFloat64Array = []
 	var input_ids: Array = range(INPUT_COUNT)
+	var compute_ids: PackedInt32Array = []
+	var link_starts: PackedInt32Array = []
+	var link_sources: PackedInt32Array = []
+	var link_weights: PackedFloat64Array = []
 
 	func copy():
 		var result = get_script().new()
@@ -40,19 +44,30 @@ class Genome:
 			if gene.enabled:
 				incoming[gene.to].append(gene)
 		values.resize(max_id + 1)
+		compute_ids.clear()
+		link_starts.clear()
+		link_sources.clear()
+		link_weights.clear()
+		for id: int in order:
+			if nodes[id] == 0.0:
+				continue
+			compute_ids.append(id)
+			link_starts.append(link_sources.size())
+			for gene in incoming[id]:
+				link_sources.append(gene.from)
+				link_weights.append(gene.weight)
+		link_starts.append(link_sources.size())
 
 	func activate(inputs: PackedFloat64Array) -> Vector2:
 		assert(inputs.size() == input_ids.size())
 		for i in range(input_ids.size()):
 			values[input_ids[i]] = inputs[i]
 		values[9] = 1.0 # bias, not a world observation
-		for id in order:
-			if nodes[id] == 0.0:
-				continue
+		for index: int in range(compute_ids.size()):
 			var total = 0.0
-			for gene in incoming[id]:
-				total += values[gene.from] * gene.weight
-			values[id] = tanh(total)
+			for link: int in range(link_starts[index], link_starts[index + 1]):
+				total += values[link_sources[link]] * link_weights[link]
+			values[compute_ids[index]] = tanh(total)
 		return Vector2(values[10], values[11]).limit_length()
 
 var rng = RandomNumberGenerator.new()

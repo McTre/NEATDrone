@@ -29,8 +29,31 @@ var selected = 0
 var banner = "Enter the cyan circle to trigger a facility alert."
 var report_path = "user://latest_run.csv"
 var wave = 1
+var simulation_debt = 0.0
+var observed_speed = 0.0
+var frame_ms = 16.7
+var frame_clock = 0
+var measured_time = 0.0
+var measured_simulation = 0.0
+const FRAME_SIMULATION_BUDGET_US = 6000
+var text_labels: Array[Label] = []
+var text_index = 0
+var text_offset = Vector2.ZERO
+var next_text_update = 0
+var update_text = true
+var robot_texture: ImageTexture
 
 func _ready() -> void:
+	var sprite = Image.create(32, 32, false, Image.FORMAT_RGBA8)
+	for y in range(32):
+		for x in range(32):
+			var point = Vector2(x + 0.5, y + 0.5) - Vector2(16, 16)
+			var radius = point.length()
+			var ring = clampf(1.5 - absf(radius - 11.0), 0, 1)
+			var dot = clampf(3.0 - radius, 0, 1)
+			var nose = clampf(1.5 - absf(point.y), 0, 1) if point.x >= 0 and point.x <= 13 else 0.0
+			sprite.set_pixel(x, y, Color(1, 1, 1, maxf(ring, maxf(dot, nose))))
+	robot_texture = ImageTexture.create_from_image(sprite)
 	DisplayServer.window_set_title("NEATDrone | Learning Lab")
 	reset_population()
 	if OS.has_feature("web"):
@@ -38,6 +61,7 @@ func _ready() -> void:
 		banner = "Click the game, then SPACE to start. WASD: move / mouse: aim / T: learning lab."
 
 func reset_population() -> void:
+	simulation_debt = 0.0
 	evolution = Neat.new(seed_value, population_size)
 	if vision_generation == 1:
 		evolution.unlock_vision()
@@ -109,19 +133,37 @@ func finish_wave() -> void:
 		last_metrics.clear()
 	begin_wave()
 
-func _physics_process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	var now = Time.get_ticks_usec()
+	var real_delta = (now - frame_clock) / 1000000.0 if frame_clock else delta
+	frame_clock = now
+	frame_ms = lerpf(frame_ms, real_delta * 1000.0, 0.1)
+	measured_time += real_delta
 	if not paused and (laboratory or sim.player_health > 0):
+		# Fixed simulation ticks, but a bounded amount of work per rendered frame.
+		# Never multiply accelerated training by Godot's physics catch-up loop.
+		simulation_debt = minf(simulation_debt + minf(real_delta, 0.1) * speed, Sim.STEP * speed * 2)
 		var movement = Vector2(
 			float(Input.is_physical_key_pressed(KEY_D)) - float(Input.is_physical_key_pressed(KEY_A)),
 			float(Input.is_physical_key_pressed(KEY_S)) - float(Input.is_physical_key_pressed(KEY_W)))
-		for tick in range(speed):
+		while simulation_debt >= Sim.STEP:
+			simulation_debt -= Sim.STEP
 			sim.step(Sim.STEP, movement, get_global_mouse_position() - ORIGIN,
 				Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT), Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT))
+			measured_simulation += Sim.STEP
 			if sim.player_health <= 0 and not laboratory:
 				banner = "SIGNAL LOST — N: evaluate wave and continue / R: fresh population"
 				break
 			if sim.elapsed >= Sim.EPISODE_SECONDS or sim.alive_count() == 0:
 				finish_wave()
+			if Time.get_ticks_usec() - now >= FRAME_SIMULATION_BUDGET_US:
+				break
+	else:
+		simulation_debt = 0.0
+	if measured_time >= 0.5:
+		observed_speed = measured_simulation / measured_time
+		measured_simulation = 0.0
+		measured_time = 0.0
 	queue_redraw()
 
 func _unhandled_key_input(event: InputEvent) -> void:
@@ -187,13 +229,33 @@ func save_champion(path: String = "user://champion.json") -> void:
 		banner = "Champion exported to: " + OS.get_user_data_dir()
 
 func label_at(position: Vector2, text: String, size: int = 16, color: Color = INK) -> void:
-	draw_string(font, position, text, HORIZONTAL_ALIGNMENT_LEFT, -1, size, color)
+	# Labels retain shaped glyphs and draw commands between updates. Calling
+	# draw_string for every HUD line each frame reshaped the entire Web HUD.
+	if text_index == text_labels.size():
+		var node = Label.new()
+		node.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		node.add_theme_font_override("font", font)
+		add_child(node)
+		text_labels.append(node)
+	var node = text_labels[text_index]
+	node.visible = true
+	if update_text or node.text.is_empty():
+		node.text = text
+		node.position = position + text_offset - Vector2(0, font.get_ascent(size))
+		node.add_theme_font_size_override("font_size", size)
+		node.modulate = color
+	text_index += 1
 
 func stat(y: float, title: String, value: String, color: Color = INK) -> void:
 	label_at(Vector2(974, y), title, 13, MUTED)
 	label_at(Vector2(1208 - font.get_string_size(value, HORIZONTAL_ALIGNMENT_LEFT, -1, 19).x, y + 1), value, 19, color)
 
 func _draw() -> void:
+	text_index = 0
+	text_offset = Vector2.ZERO
+	update_text = Time.get_ticks_msec() >= next_text_update
+	if update_text:
+		next_text_update = Time.get_ticks_msec() + 100
 	draw_rect(Rect2(0, 0, 1280, 800), Color("080e16"))
 	label_at(Vector2(28, 39), "NEAT / DRONE", 27, CYAN)
 	label_at(Vector2(28, 64), "EVOLUTION OBSERVATORY     /     STAGE B" if evolution.vision_enabled else "EVOLUTION OBSERVATORY     /     STAGE A", 12, MUTED)
@@ -202,9 +264,10 @@ func _draw() -> void:
 	draw_rect(Rect2(1044, 22, 188, 40), Color("132d30"))
 	label_at(Vector2(1058, 48), "POPULATION TEST" if deployment else ("LABORATORY" if laboratory else "LIVE COMBAT"), 16, CYAN)
 	label_at(Vector2(28, 103), "01  /  TEST CHAMBER", 14, MUTED)
-	label_at(Vector2(638, 103), "%s    %dx    SEED %d" % ["PAUSED" if paused else "RUNNING", speed, seed_value], 14, AMBER if paused else MUTED)
+	label_at(Vector2(535, 103), "%s   %d FPS   %.1fx / %dx   SEED %d" % ["PAUSED" if paused else "RUNNING", roundi(1000.0 / maxf(1, frame_ms)), observed_speed, speed, seed_value], 13, AMBER if paused else MUTED)
 
 	draw_set_transform(ORIGIN)
+	text_offset = ORIGIN
 	draw_rect(Rect2(Vector2.ZERO, Sim.SIZE), Color("0d1822"))
 	for x in range(0, 901, 30):
 		draw_line(Vector2(x, 0), Vector2(x, Sim.SIZE.y), Color("14232d"))
@@ -231,10 +294,9 @@ func _draw() -> void:
 			draw_line(pos - Vector2(4, -4), pos + Vector2(4, -4), Color("45505a"))
 			continue
 		var color = Color.from_hsv(fmod(robot.genome.species * 0.137 + 0.04, 1.0), 0.48, 0.94)
-		draw_circle(pos, Sim.ROBOT_RADIUS, Color("17232d"))
-		draw_arc(pos, Sim.ROBOT_RADIUS, 0, TAU, 20, color, 1.5, true)
-		draw_line(pos, pos + robot.heading * 13, color, 2, true)
-		draw_circle(pos, 2.5, color)
+		draw_set_transform(ORIGIN + pos, robot.heading.angle())
+		draw_texture(robot_texture, Vector2(-16, -16), color)
+		draw_set_transform(ORIGIN)
 		if robot.health < 2:
 			draw_line(pos + Vector2(-6, 16), pos + Vector2(0, 16), AMBER, 2)
 		if selected == i:
@@ -263,6 +325,7 @@ func _draw() -> void:
 		if sim.melee_flash > 0:
 			draw_arc(sim.player, 58, sim.aim.angle() - 1.3, sim.aim.angle() + 1.3, 24, CYAN, 5, true)
 	draw_set_transform(Vector2.ZERO)
+	text_offset = Vector2.ZERO
 
 	draw_rect(Rect2(950, 86, 282, 618), Color("101c27"))
 	label_at(Vector2(974, 113), "02  /  POPULATION", 14, MUTED)
@@ -289,6 +352,8 @@ func _draw() -> void:
 	label_at(Vector2(28, 732), banner, 14, CYAN if sim.player_health > 0 else AMBER)
 	label_at(Vector2(28, 760), "WASD  move     LMB  shoot     RMB  melee     SPACE  pause     T  lab / combat (reset)     1 / 2 / 3  speed", 13, INK)
 	label_at(Vector2(28, 785), "V  queue vision     C  lab / trained combat     H  sensors     Q  bot     N  next     R  reset     G  seed     E  export", 13, MUTED)
+	for i in range(text_index, text_labels.size()):
+		text_labels[i].visible = false
 
 func draw_chart(rect: Rect2) -> void:
 	draw_rect(rect, Color("0b151f"))

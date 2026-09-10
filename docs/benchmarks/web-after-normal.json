@@ -1,0 +1,26 @@
+[
+    {
+        "measurement":  {
+                            "fps":  59.946048556299324,
+                            "p95_ms":  23,
+                            "frames":  300
+                        },
+        "mode":  "paused"
+    },
+    {
+        "measurement":  {
+                            "fps":  59.77574067744919,
+                            "p95_ms":  20.200000017881393,
+                            "frames":  298
+                        },
+        "mode":  "combat_1x"
+    },
+    {
+        "measurement":  {
+                            "fps":  59.960694661765004,
+                            "p95_ms":  20.80000001192093,
+                            "frames":  299
+                        },
+        "mode":  "lab_8x"
+    }
+]

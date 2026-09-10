@@ -92,6 +92,7 @@ kannattaa käyttää harjoittelua ja erillistä vertailuajoa.
 $godotExe = 'C:\Users\immuS\Documents\Godot\Godot_v4.7.2-stable_win64_console.exe'
 & $godotExe --headless --path . --script tests/core_tests.gd
 & $godotExe --headless --path . --script tests/vision_tests.gd
+& $godotExe --headless --path . --script tests/network_execution.gd
 & $godotExe --headless --path . --script tests/scene_smoke.gd
 & $godotExe --headless --path . --script tests/benchmark.gd -- --generations=30 --seed=42
 & $godotExe --headless --path . --script tests/benchmark.gd -- --stage=vision --generations=20 --population=32 --seed=42 --output=res://reports/vision-benchmark.json
@@ -204,6 +205,28 @@ kirjainpikanäppäimiä H, Q, G ja E, sillä funktionäppäimet voivat olla sela
 omia komentoja. E lataa mestarigenomin JSON-tiedoston koneellesi.
 Populaatio ei tallennu sivunpäivityksen yli. Nopeutettu harjoittelu voi olla
 selaimessa työpöytäversiota hitaampaa; 1/2/3 säätävät nopeutta.
+
+Yläpalkki näyttää nyt FPS:n sekä toteutuneen ja pyydetyn simulaationopeuden
+(esimerkiksi `2.5x / 8x`). Simulaatio käyttää edelleen 1/60 sekunnin askelia,
+mutta yhden kuvaruudun laskentabudjetti on 6 ms. Kuorman kasvaessa peli ajaa
+vähemmän simulaatioaskelia seinäkellosekunnissa, jotta ohjaus ja piirtäminen
+saavat aikaa. Populaatiota ei pienennetä eikä simulaation sisäisiä askelia ohiteta.
+
+HUD-tekstit käyttävät välimuistissa pidettäviä Label-solmuja ja päivittyvät
+10 kertaa sekunnissa. Robotin kuvake muodostetaan kerran tekstuuriksi.
+NEAT-verkon suoritus käyttää etukäteen muodostettuja numeroituja taulukoita;
+genomin muokkaamisen jälkeen kutsutaan `compile()`. Sen tulokset on verrattu
+320 tapauksessa suoraan geenilistasta laskettuun tulokseen.
+
+Suorituskykyvertailu omalla koneella:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/test-web.ps1 -PerformanceOnly -CpuRate 1
+```
+
+Testi mittaa selaimen ruutuvälejä tauolla, tavallisessa taistelussa ja
+nopeutetussa harjoittelussa. `-CpuRate 4` hidastaa selaimen CPU-suoritusta
+vertailua varten; se ei vastaa koneen tavallista pelinopeutta.
 
 Paikallinen esikatselu (pidä palvelin käynnissä):
 

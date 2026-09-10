@@ -101,6 +101,8 @@ func blocked(point: Vector2, radius: float) -> bool:
 
 func move_body(point: Vector2, displacement: Vector2, radius: float) -> Vector2:
 	# Collision resolves penetration only. No steering, turn-away or pathfinder.
+	if displacement == Vector2.ZERO:
+		return point
 	var slices = maxi(1, ceili(displacement.length() / (radius * 0.5)))
 	var increment = displacement / slices
 	for i in range(slices):
@@ -144,24 +146,28 @@ func ray_distance(origin: Vector2, direction: Vector2, maximum: float = SENSOR_R
 
 func observations(robot: Dictionary) -> PackedFloat64Array:
 	var inputs = PackedFloat64Array()
+	inputs.resize(13 if vision_enabled else 9)
 	var heading: Vector2 = robot.heading
-	for direction in [heading, heading.rotated(-PI / 2), heading.rotated(PI / 2)]:
-		inputs.append(1.0 - clampf((ray_distance(robot.position, direction) - ROBOT_RADIUS) / SENSOR_RANGE, 0, 1))
+	var position: Vector2 = robot.position
+	inputs[0] = 1.0 - clampf((ray_distance(position, heading) - ROBOT_RADIUS) / SENSOR_RANGE, 0, 1)
+	inputs[1] = 1.0 - clampf((ray_distance(position, heading.rotated(-PI / 2)) - ROBOT_RADIUS) / SENSOR_RANGE, 0, 1)
+	inputs[2] = 1.0 - clampf((ray_distance(position, heading.rotated(PI / 2)) - ROBOT_RADIUS) / SENSOR_RANGE, 0, 1)
 	var target_vector: Vector2 = alert - robot.position if alert_active else Vector2.ZERO
 	var target_direction = target_vector.normalized()
-	inputs.append(target_direction.x)
-	inputs.append(target_direction.y)
-	inputs.append(target_vector.length() / SIZE.length())
-	inputs.append(robot.velocity.x / ROBOT_SPEED)
-	inputs.append(robot.velocity.y / ROBOT_SPEED)
-	inputs.append(1.0 if alert_active else 0.0)
+	inputs[3] = target_direction.x
+	inputs[4] = target_direction.y
+	inputs[5] = target_vector.length() / SIZE.length()
+	inputs[6] = robot.velocity.x / ROBOT_SPEED
+	inputs[7] = robot.velocity.y / ROBOT_SPEED
+	inputs[8] = 1.0 if alert_active else 0.0
 	if vision_enabled:
 		var visible = sees_player(robot)
 		var offset: Vector2 = player - robot.position if visible else Vector2.ZERO
-		inputs.append(offset.normalized().x)
-		inputs.append(offset.normalized().y)
-		inputs.append(offset.length() / VISION_RANGE)
-		inputs.append(1.0 if visible else 0.0)
+		var direction = offset.normalized()
+		inputs[9] = direction.x
+		inputs[10] = direction.y
+		inputs[11] = offset.length() / VISION_RANGE
+		inputs[12] = 1.0 if visible else 0.0
 	return inputs
 
 func hurt_robot(robot: Dictionary, amount: float) -> void:
@@ -216,9 +222,10 @@ func step(delta: float, movement: Vector2 = Vector2.ZERO, aim_at: Vector2 = Vect
 	for robot in robots:
 		if robot.health <= 0:
 			continue
-		var output: Vector2 = robot.genome.activate(observations(robot))
+		var inputs = observations(robot)
+		var output: Vector2 = robot.genome.activate(inputs)
 		var before: Vector2 = robot.position
-		var visible = sees_player(robot)
+		var visible = vision_enabled and inputs[12] > 0.0
 		robot.position = move_body(before, output * ROBOT_SPEED * delta, ROBOT_RADIUS)
 		robot.velocity = (robot.position - before) / delta
 		if output.length_squared() > 0.01:
