@@ -18,6 +18,9 @@ var sensors = false
 var speed = 1
 @export var seed_value = 42
 @export_range(4, 128) var population_size = 48
+@export_range(0, 100) var vision_generation = 6 # 0 disables scheduled upgrade.
+var vision_requested = false
+var deployment = false
 var trial = 0
 var totals: Array = []
 var history: Array = []
@@ -28,34 +31,50 @@ var report_path = "user://latest_run.csv"
 var wave = 1
 
 func _ready() -> void:
-	DisplayServer.window_set_title("NEATDrone | Stage A — Learning Lab")
+	DisplayServer.window_set_title("NEATDrone | Learning Lab")
 	reset_population()
 
 func reset_population() -> void:
 	evolution = Neat.new(seed_value, population_size)
+	if vision_generation == 1:
+		evolution.unlock_vision()
 	history.clear()
 	last_metrics.clear()
 	wave = 1
 	trial = 0
 	paused = false
+	deployment = false
+	vision_requested = false
 	totals.resize(evolution.population_size)
 	totals.fill(0.0)
 	var report = FileAccess.open(report_path, FileAccess.WRITE)
 	if report:
-		report.store_line("generation,mode,best_fitness,mean_fitness,arrival_rate,wall_seconds,progress_px,species")
+		report.store_line("generation,mode,stage,best_fitness,mean_fitness,arrival_rate,wall_seconds,progress_px,species,contact_rate,contacts")
 	begin_wave()
 
 func begin_wave() -> void:
 	selected = 0
 	if laboratory:
-		var scenario = Training.TRAIN_CASES[trial]
-		sim.setup(evolution.population, scenario[1], scenario[0], true)
-		banner = "Laboratory: equal trials for every genome. Weapons disabled."
+		if evolution.vision_enabled:
+			Training.setup_vision(sim, evolution.population, Training.VISION_CASES[trial])
+			banner = "Vision lab: moving target, independent contact scores. C: try this population in combat."
+		else:
+			var scenario = Training.TRAIN_CASES[trial]
+			sim.setup(evolution.population, scenario[1], scenario[0], true)
+			banner = "Navigation lab. Vision unlocks at generation %d. V: request upgrade sooner." % vision_generation
 	else:
 		sim.setup(evolution.population, Vector2(450, 150))
-		banner = "Enter the cyan circle to trigger a facility alert."
+		banner = "Enter the cyan circle to trigger a facility alert. V: request vision at next generation."
+		if deployment:
+			banner = "Trained population test — evolution frozen. C: return to laboratory."
+		elif evolution.vision_enabled:
+			banner = "Vision online: range 300, walls block sight. Movement is still entirely evolved."
 
 func finish_wave() -> void:
+	if deployment:
+		wave += 1
+		begin_wave()
+		return
 	var scores = sim.scores()
 	var divisor = Training.TRAIN_CASES.size() if laboratory else 1
 	for i in range(scores.size()):
@@ -74,10 +93,14 @@ func finish_wave() -> void:
 		var report = FileAccess.open(report_path, FileAccess.READ_WRITE)
 		if report:
 			report.seek_end()
-			report.store_line("%d,%s,%.3f,%.3f,%.4f,%.3f,%.3f,%d" % [evaluated_generation,
-				"lab" if laboratory else "combat", evolution.last_best, evolution.last_average,
+			report.store_line("%d,%s,%s,%.3f,%.3f,%.4f,%.3f,%.3f,%d,%.4f,%.3f" % [evaluated_generation,
+				"lab" if laboratory else "combat", "vision" if evolution.vision_enabled else "navigation", evolution.last_best, evolution.last_average,
 				last_metrics.arrival_rate, last_metrics.wall_seconds, last_metrics.progress_px,
-				evolution.species_records.size()])
+				evolution.species_records.size(), last_metrics.contact_rate, last_metrics.contacts])
+		if not evolution.vision_enabled and (vision_requested or (vision_generation > 0 and evolution.generation >= vision_generation)):
+			evolution.unlock_vision()
+			vision_requested = false
+			history.clear()
 		trial = 0
 		totals.fill(0.0)
 		last_metrics.clear()
@@ -115,6 +138,19 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			laboratory = not laboratory
 			speed = 8 if laboratory else 1
 			reset_population() # Never mix different evaluation objectives.
+		KEY_V:
+			if not evolution.vision_enabled and not deployment:
+				vision_requested = true
+				banner = "Vision upgrade queued for the next generation. Current trials will finish first."
+		KEY_C:
+			if laboratory or deployment:
+				deployment = not deployment
+				laboratory = not deployment
+				speed = 1 if deployment else 8
+				trial = 0
+				totals.fill(0.0)
+				last_metrics.clear()
+				begin_wave()
 		KEY_1:
 			speed = 1
 		KEY_2:
@@ -138,7 +174,8 @@ func save_champion(path: String = "user://champion.json") -> void:
 	if file:
 		file.store_string(JSON.stringify({"generation": evolution.generation - 1,
 			"seed": seed_value, "fitness": genome.fitness, "nodes": genome.nodes,
-			"genes": genome.genes, "inputs": Neat.INPUT_COUNT}, "\t"))
+			"genes": genome.genes, "inputs": genome.input_ids.size(),
+			"input_ids": genome.input_ids, "vision": evolution.vision_enabled}, "\t"))
 		banner = "Champion exported to: " + OS.get_user_data_dir()
 
 func label_at(position: Vector2, text: String, size: int = 16, color: Color = INK) -> void:
@@ -151,11 +188,11 @@ func stat(y: float, title: String, value: String, color: Color = INK) -> void:
 func _draw() -> void:
 	draw_rect(Rect2(0, 0, 1280, 800), Color("080e16"))
 	label_at(Vector2(28, 39), "NEAT / DRONE", 27, CYAN)
-	label_at(Vector2(28, 64), "EVOLUTION OBSERVATORY     /     STAGE A", 12, MUTED)
-	label_at(Vector2(570, 38), "ALERT NAVIGATION", 18)
-	label_at(Vector2(570, 61), "9 observations  /  2 movement outputs  /  no vision", 13, MUTED)
+	label_at(Vector2(28, 64), "EVOLUTION OBSERVATORY     /     STAGE B" if evolution.vision_enabled else "EVOLUTION OBSERVATORY     /     STAGE A", 12, MUTED)
+	label_at(Vector2(570, 38), "VISUAL PURSUIT" if evolution.vision_enabled else "ALERT NAVIGATION", 18)
+	label_at(Vector2(570, 61), "13 observations / 2 outputs / occluded vision" if evolution.vision_enabled else "9 observations / 2 outputs / no vision", 13, MUTED)
 	draw_rect(Rect2(1044, 22, 188, 40), Color("132d30"))
-	label_at(Vector2(1058, 48), "LABORATORY" if laboratory else "LIVE COMBAT", 18, CYAN)
+	label_at(Vector2(1058, 48), "POPULATION TEST" if deployment else ("LABORATORY" if laboratory else "LIVE COMBAT"), 16, CYAN)
 	label_at(Vector2(28, 103), "01  /  TEST CHAMBER", 14, MUTED)
 	label_at(Vector2(638, 103), "%s    %dx    SEED %d" % ["PAUSED" if paused else "RUNNING", speed, seed_value], 14, AMBER if paused else MUTED)
 
@@ -195,13 +232,21 @@ func _draw() -> void:
 		if selected == i:
 			draw_arc(pos, 17, 0, TAU, 28, Color(INK, 0.6), 1, true)
 			if sensors:
+				if sim.vision_enabled:
+					for segment in range(96):
+						var a = pos + Vector2.from_angle(segment * TAU / 96) * Sim.VISION_RANGE
+						var b = pos + Vector2.from_angle((segment + 1) * TAU / 96) * Sim.VISION_RANGE
+						if Rect2(Vector2.ZERO, Sim.SIZE).has_point(a) and Rect2(Vector2.ZERO, Sim.SIZE).has_point(b):
+							draw_line(a, b, Color(CYAN, 0.12), 1, true)
+					if sim.sees_player(robot):
+						draw_line(pos, sim.player, CYAN, 2, true)
 				for direction in [robot.heading, robot.heading.rotated(-PI / 2), robot.heading.rotated(PI / 2)]:
 					draw_line(pos, pos + direction * sim.ray_distance(pos, direction), Color(AMBER, 0.55), 1, true)
 				if sim.alert_active:
 					draw_line(pos, sim.alert, Color(CYAN, 0.28), 1, true)
 	for bullet in sim.bullets:
 		draw_line(bullet.position - bullet.velocity.normalized() * 9, bullet.position, INK, 2.5, true)
-	if not laboratory:
+	if not laboratory or sim.vision_enabled:
 		var player_color = CYAN if sim.player_health > 0 else MUTED
 		draw_circle(sim.player, 19, Color(player_color, 0.08))
 		draw_circle(sim.player, Sim.PLAYER_RADIUS, player_color)
@@ -224,18 +269,18 @@ func _draw() -> void:
 	stat(401, "LAST MEAN", "%.1f" % evolution.last_average, CYAN)
 	draw_chart(Rect2(974, 420, 234, 68))
 	var metrics = sim.metrics()
-	stat(518, "ARRIVED (NOW)", "%d%%" % (metrics.arrival_rate * 100), CYAN)
+	stat(518, "CONTACT (NOW)" if sim.vision_enabled else "ARRIVED (NOW)", "%d%%" % ((metrics.contact_rate if sim.vision_enabled else metrics.arrival_rate) * 100), CYAN)
 	stat(550, "WALL TIME / BOT", "%.1fs" % metrics.wall_seconds)
 	var chosen = sim.robots[selected]
 	label_at(Vector2(974, 587), "BOT %02d / SPECIES %d" % [selected + 1, chosen.genome.species], 13, MUTED)
-	label_at(Vector2(974, 611), "%d nodes  ·  %d links" % [chosen.genome.nodes.size(), chosen.genome.genes.size()], 14)
+	label_at(Vector2(974, 611), "%d nodes · %d links · %s" % [chosen.genome.nodes.size(), chosen.genome.genes.size(), "SEES" if sim.sees_player(chosen) else "—"], 12)
 	label_at(Vector2(974, 637), "Progress %+.1f   Arrival %+.1f" % [chosen.parts.progress, chosen.parts.arrival], 12, CYAN)
 	label_at(Vector2(974, 658), "Wall %+.1f   Damage %+.1f" % [chosen.parts.wall, chosen.parts.damage], 12, AMBER)
-	label_at(Vector2(974, 680), "Alive %+.1f   Death %+.1f" % [chosen.parts.survival, chosen.parts.death], 12, MUTED)
+	label_at(Vector2(974, 680), "Pursuit %+.1f / HP %+.1f / KO %+.0f" % [chosen.parts.pursuit, chosen.parts.survival, chosen.parts.death], 11, MUTED)
 
 	label_at(Vector2(28, 732), banner, 14, CYAN if sim.player_health > 0 else AMBER)
 	label_at(Vector2(28, 760), "WASD  move     LMB  shoot     RMB  melee     SPACE  pause     T  lab / combat (reset)     1 / 2 / 3  speed", 13, INK)
-	label_at(Vector2(28, 785), "F1  sensors     TAB  inspect bot     N  next combat wave     R  restart     F9  new seed     F5  export champion", 13, MUTED)
+	label_at(Vector2(28, 785), "V  queue vision     C  lab / trained combat     F1  sensors     TAB  bot     N  next     R  reset     F9  seed     F5  export", 13, MUTED)
 
 func draw_chart(rect: Rect2) -> void:
 	draw_rect(rect, Color("0b151f"))

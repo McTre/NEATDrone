@@ -27,12 +27,29 @@ func run() -> void:
 	scene.sensors = true
 	scene.sim.player = scene.sim.alert
 	scene.sim.step(1.0 / 60.0)
+	scene.vision_requested = true
+	scene.finish_wave()
+	assert(scene.evolution.vision_enabled)
+	assert(scene.sim.observations(scene.sim.robots[0]).size() == 13)
+	var event = InputEventKey.new()
+	event.pressed = true
+	event.physical_keycode = KEY_C
+	scene.laboratory = true
+	var generation: int = scene.evolution.generation
+	scene._unhandled_key_input(event)
+	assert(scene.deployment and not scene.laboratory)
+	scene.finish_wave()
+	assert(scene.evolution.generation == generation)
+	scene._unhandled_key_input(event)
+	assert(scene.laboratory and not scene.deployment)
+	scene.sim.step(1.0 / 60.0)
 	scene.queue_redraw()
 	await process_frame
 	await process_frame
 	if "--screenshot" in OS.get_cmdline_user_args():
 		await RenderingServer.frame_post_draw
 		var screenshot = root.get_texture().get_image()
-		screenshot.save_png("res://reports/arena.png")
-	print("SCENE SMOKE: lab generation, combat reset, telemetry, export and debug drawing passed")
+		DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://reports"))
+		assert(screenshot.save_png("res://reports/arena.png") == OK)
+	print("SCENE SMOKE: evolution, vision upgrade, trained combat, telemetry, export and drawing passed")
 	quit()

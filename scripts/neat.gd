@@ -16,6 +16,7 @@ class Genome:
 	var order: Array = []
 	var incoming: Dictionary = {}
 	var values: PackedFloat64Array = []
+	var input_ids: Array = range(INPUT_COUNT)
 
 	func copy():
 		var result = get_script().new()
@@ -23,6 +24,7 @@ class Genome:
 		result.genes = genes.duplicate(true)
 		result.fitness = fitness
 		result.species = species
+		result.input_ids = input_ids.duplicate()
 		result.compile()
 		return result
 
@@ -40,11 +42,12 @@ class Genome:
 		values.resize(max_id + 1)
 
 	func activate(inputs: PackedFloat64Array) -> Vector2:
-		for i in range(INPUT_COUNT):
-			values[i] = inputs[i]
+		assert(inputs.size() == input_ids.size())
+		for i in range(input_ids.size()):
+			values[input_ids[i]] = inputs[i]
 		values[9] = 1.0 # bias, not a world observation
 		for id in order:
-			if id <= 9:
+			if nodes[id] == 0.0:
 				continue
 			var total = 0.0
 			for gene in incoming[id]:
@@ -65,6 +68,36 @@ var species_records: Array = []
 var champion = null
 var last_best = 0.0
 var last_average = 0.0
+var vision_enabled = false
+
+func unlock_vision() -> void:
+	if vision_enabled:
+		return
+	vision_enabled = true
+	var new_inputs: Array = []
+	for i in range(4):
+		new_inputs.append(next_node)
+		next_node += 1
+	var genomes = population.duplicate()
+	if champion != null:
+		genomes.append(champion)
+	for record in species_records:
+		genomes.append(record.representative)
+		# New hardware changes the evaluation task; old fitness is incomparable.
+		record.best = -INF
+		record.stale = 0
+	for genome in genomes:
+		for id in new_inputs:
+			genome.input_ids.append(id)
+			genome.nodes[id] = 0.0
+			for dest in OUTPUT_IDS:
+				genome.genes.append(connection(id, dest, 0.0))
+		genome.compile()
+	# Zero initial weights preserve the old policy exactly. Evolution must
+	# discover how to use the new observations through ordinary mutation.
+	champion = null # The new task has not been evaluated yet; population elite survives.
+	last_best = 0.0
+	last_average = 0.0
 
 func _init(seed_value: int = 42, count: int = 48) -> void:
 	rng.seed = seed_value

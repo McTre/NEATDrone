@@ -11,6 +11,7 @@ const SENSOR_RANGE = 110.0
 const ALERT_RADIUS = 65.0
 const STEP = 1.0 / 60.0
 const EPISODE_SECONDS = 16.0
+const VISION_RANGE = 300.0
 
 var walls: Array[Rect2] = [
 	Rect2(260, 100, 28, 145), Rect2(612, 335, 28, 145),
@@ -31,6 +32,10 @@ var melee_flash = 0.0
 var contact_cooldown = 0.0
 var kills = 0
 var initial_population = 0
+var vision_enabled = false
+var blind_test = false
+var player_path: Array = []
+var path_index = 0
 
 func setup(genomes: Array, target: Vector2, spawn: Vector2 = Vector2(-1, -1), laboratory: bool = false) -> void:
 	robots.clear()
@@ -47,6 +52,10 @@ func setup(genomes: Array, target: Vector2, spawn: Vector2 = Vector2(-1, -1), la
 	contact_cooldown = 0.0
 	kills = 0
 	initial_population = genomes.size()
+	vision_enabled = not genomes.is_empty() and genomes[0].input_ids.size() > 9
+	blind_test = false
+	player_path = []
+	path_index = 0
 	for i in range(genomes.size()):
 		var position = spawn
 		if position.x < 0:
@@ -60,8 +69,26 @@ func setup(genomes: Array, target: Vector2, spawn: Vector2 = Vector2(-1, -1), la
 		robots.append({"genome": genomes[i], "position": position, "velocity": Vector2.ZERO,
 			"heading": Vector2.RIGHT, "health": 2.0, "reached": false,
 			"start_distance": position.distance_to(alert), "wall_time": 0.0,
+			"contact_timer": 0.0, "contacts": 0, "visible_time": 0.0,
 			"parts": {"survival": 0.0, "progress": 0.0, "arrival": 0.0,
-				"damage": 0.0, "wall": 0.0, "death": 0.0}})
+				"damage": 0.0, "wall": 0.0, "death": 0.0, "pursuit": 0.0}})
+
+func sees_player(robot: Dictionary) -> bool:
+	if not vision_enabled or blind_test:
+		return false
+	var offset: Vector2 = player - robot.position
+	var distance = offset.length()
+	return distance <= VISION_RANGE and ray_distance(robot.position, offset.normalized(), distance) >= distance - 0.001
+
+func move_training_player(delta: float) -> void:
+	if player_path.is_empty():
+		return
+	var target: Vector2 = player_path[path_index]
+	var offset = target - player
+	var travel = minf(65.0 * delta, offset.length())
+	player = move_body(player, offset.normalized() * travel, PLAYER_RADIUS)
+	if player.distance_to(target) < 2:
+		path_index = (path_index + 1) % player_path.size()
 
 func blocked(point: Vector2, radius: float) -> bool:
 	if point.x < radius or point.y < radius or point.x > SIZE.x - radius or point.y > SIZE.y - radius:
@@ -128,6 +155,13 @@ func observations(robot: Dictionary) -> PackedFloat64Array:
 	inputs.append(robot.velocity.x / ROBOT_SPEED)
 	inputs.append(robot.velocity.y / ROBOT_SPEED)
 	inputs.append(1.0 if alert_active else 0.0)
+	if vision_enabled:
+		var visible = sees_player(robot)
+		var offset: Vector2 = player - robot.position if visible else Vector2.ZERO
+		inputs.append(offset.normalized().x)
+		inputs.append(offset.normalized().y)
+		inputs.append(offset.length() / VISION_RANGE)
+		inputs.append(1.0 if visible else 0.0)
 	return inputs
 
 func hurt_robot(robot: Dictionary, amount: float) -> void:
@@ -160,6 +194,8 @@ func step(delta: float, movement: Vector2 = Vector2.ZERO, aim_at: Vector2 = Vect
 	melee_cooldown = maxf(0, melee_cooldown - delta)
 	melee_flash = maxf(0, melee_flash - delta)
 	contact_cooldown = maxf(0, contact_cooldown - delta)
+	if lab and vision_enabled:
+		move_training_player(delta)
 	if not lab and player_health > 0:
 		player = move_body(player, movement.limit_length() * PLAYER_SPEED * delta, PLAYER_RADIUS)
 		if player.distance_to(alert) <= ALERT_RADIUS:
@@ -182,11 +218,15 @@ func step(delta: float, movement: Vector2 = Vector2.ZERO, aim_at: Vector2 = Vect
 			continue
 		var output: Vector2 = robot.genome.activate(observations(robot))
 		var before: Vector2 = robot.position
+		var visible = sees_player(robot)
 		robot.position = move_body(before, output * ROBOT_SPEED * delta, ROBOT_RADIUS)
 		robot.velocity = (robot.position - before) / delta
 		if output.length_squared() > 0.01:
 			robot.heading = output.normalized()
 		robot.parts.survival += delta * 0.08
+		if visible:
+			robot.visible_time += delta
+			robot.parts.pursuit += (before.distance_to(player) - robot.position.distance_to(player)) * 0.15
 		if alert_active:
 			# Signed potential difference, so cycling cannot farm progress.
 			robot.parts.progress += (before.distance_to(alert) - robot.position.distance_to(alert)) * 0.10
@@ -197,8 +237,17 @@ func step(delta: float, movement: Vector2 = Vector2.ZERO, aim_at: Vector2 = Vect
 		if requested_distance > 0.1 and before.distance_to(robot.position) < requested_distance * 0.35:
 			robot.wall_time += delta
 			robot.parts.wall -= delta * 2.0
-		if not lab and player_health > 0 and contact_cooldown <= 0 and robot.position.distance_to(player) < ROBOT_RADIUS + PLAYER_RADIUS:
+		robot.contact_timer = maxf(0, robot.contact_timer - delta)
+		var touching = robot.position.distance_to(player) < ROBOT_RADIUS + PLAYER_RADIUS
+		if lab and vision_enabled and touching and robot.contact_timer <= 0:
+			# Each genome has an independent contact clock and invulnerable target.
+			# One genome cannot steal another genome's evaluation opportunities.
+			robot.contacts += 1
+			robot.parts.damage += 8.0
+			robot.contact_timer = 0.45
+		if not lab and player_health > 0 and contact_cooldown <= 0 and touching:
 			player_health = maxf(0, player_health - 10)
+			robot.contacts += 1
 			robot.parts.damage += 8.0
 			contact_cooldown = 0.45
 	for index in range(bullets.size() - 1, -1, -1):
@@ -241,11 +290,19 @@ func metrics() -> Dictionary:
 	var wall_time = 0.0
 	var progress = 0.0
 	var score = 0.0
+	var contacted = 0
+	var contacts = 0
+	var visible_time = 0.0
 	for robot in robots:
 		reached += 1 if robot.reached else 0
 		wall_time += robot.wall_time
 		progress += robot.parts.progress / 0.10
 		score += fitness(robot)
+		contacted += 1 if robot.contacts > 0 else 0
+		contacts += robot.contacts
+		visible_time += robot.visible_time
 	var count = maxi(1, robots.size())
 	return {"arrival_rate": float(reached) / count, "wall_seconds": wall_time / count,
-		"progress_px": progress / count, "fitness": score / count}
+		"progress_px": progress / count, "fitness": score / count,
+		"contact_rate": float(contacted) / count, "contacts": float(contacts) / count,
+		"visible_seconds": visible_time / count}
